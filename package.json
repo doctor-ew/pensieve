@@ -1,12 +1,12 @@
 {
   "name": "@doctor-ew/pensieve",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Private session memory, semantic recall, and deliberate sharing.",
   "type": "module",
   "license": "MIT",
   "engines": { "node": ">=22.13" },
   "bin": { "pensieve": "dist/cli.js" },
-  "files": ["dist", "web", "README.md", "LICENSE"],
+  "files": ["dist", "web", "skills", "integrations", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc",
     "check-types": "tsc --noEmit",
