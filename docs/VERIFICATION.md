@@ -1,5 +1,28 @@
 # Verification — 2026-11-06
 
+## v0.2 executive sharing
+
+- Type checking, build, and 16 automated tests passed locally. New checks cover
+  recipient isolation, code replay/expiry/lockout, concurrent resend throttling,
+  persistent snapshots, revocation, owner/reader separation, named pools, and
+  cloud-consent/citation boundaries. [Tests](../test/sharing.test.ts).
+- A synthetic browser trial selected one of two memories, created a share,
+  verified an invited email using a test mail sink, read the brief, and asked a
+  question. The unselected memory was absent. Layout had no horizontal overflow
+  at 390px. This was not a live email-delivery test.
+  [Fixture](../test/browser-fixture.ts).
+- The normal `pensieve` launcher, Codex skill, and Claude command were installed
+  locally. The named Hack-Her-Thon pool opened without supplying a path. The
+  `pack` command exported two synthetic memories with one command.
+  [Installer](../scripts/install-local.sh), [CLI](../src/cli.ts).
+- Skill validation passed using the skill-creator validator with PyYAML supplied
+  through an isolated `uv run` environment. [Skill](../skills/pensieve/SKILL.md).
+
+Deployment is not certified: Railway authentication was unavailable, and no
+sharing-email credentials were configured. Cloud-answer behavior was tested with
+a mocked model response, not a live key. The deployment files are prepared, but
+there is no remote executive link yet. [Operator setup](EXECUTIVE-SHARING.md).
+
 ## Executed locally
 
 - `pnpm check-types`, `pnpm test`, `pnpm build`, and `git diff --check`: passed.

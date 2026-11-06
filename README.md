@@ -6,9 +6,30 @@ Capture a thought, import Codex and Claude Code conversations, and recall releva
 passages by meaning. Keep your pool private, then deliberately share selected
 memories as portable bundles, Git files, or through a self-hosted workspace.
 
-This is an early, runnable v0.1. Its local vector store uses SQLite persistence and
+This is an early, runnable v0.2. Its local vector store uses SQLite persistence and
 exact cosine ranking. It is not an approximate-nearest-neighbor engine; search
 currently scans the selected model’s vectors in memory. See [the store](src/store.ts).
+
+## Share without the terminal ceremony
+
+In the UI, click **Share with someone**, review the brief and selected memories,
+enter recipient emails, then **Create private link → Copy link**. Recipients open
+the link and verify their email. **Manage shares** lets you revoke access.
+**Download pool** saves the whole pool as one portable file.
+[Executive sharing guide](docs/EXECUTIVE-SHARING.md).
+
+From a shell, use `pensieve open hack-her-thon`, `pensieve share hack-her-thon`,
+or `pensieve pack hack-her-thon`. Pool names are registered once; ordinary use
+does not require IDs or database paths. The repo includes `/pensieve` for Claude
+Code and `$pensieve` for Codex. After building, `bash scripts/install-local.sh`
+installs the local launcher and both agent shortcuts, preserving conflicting
+existing files. [CLI](src/cli.ts), [installer](scripts/install-local.sh).
+
+Invited browser links require a deployed sharing service and configured email
+delivery. The sender connects it once in **Sharing settings**; recipients install
+nothing. The current brief starts from editable excerpts. Generated answers are
+optional and require both share-level consent and operator model configuration.
+[Setup and boundaries](docs/EXECUTIVE-SHARING.md).
 
 ## Start locally
 
@@ -43,7 +64,7 @@ the `pensieve` binary; the npm package has **not** been published.
   session, role, timestamp, locator, project, and cosine similarity.
 
 These commands are implemented in [src/cli.ts](src/cli.ts); parsing and stable
-chunk identities are in [src/sessions.ts](src/sessions.ts). The CLI is the v0.1
+chunk identities are in [src/sessions.ts](src/sessions.ts). The CLI is the v0.2
 agent interface; an MCP server is not yet included.
 
 Import only reads user and assistant text. It skips tool bodies and reasoning

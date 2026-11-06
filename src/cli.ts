@@ -8,8 +8,19 @@ import { discover, discoverProject, makeMemory, readSession } from './sessions.j
 import { exchange, gitExport, readBundle, writeBundle } from './sharing.js';
 import { createApp } from './server.js';
 import type { Bundle } from './types.js';
+import { execFile } from 'node:child_process';
+import { resolvePool, registerPool, settings } from './pools.js';
+import { ShareStore, mailerFromEnv } from './executive.js';
+import { createShareServer } from './share-server.js';
 
 const help = `Pensieve — Doctor Ew's Laboratory
+
+  pensieve [open] [POOL]              Open your memory pool in the browser
+  pensieve share [POOL]               Open the executive sharing dialog
+  pensieve pack [POOL]                Save the whole pool as one portable file
+  pensieve pools                      List your named pools
+  pensieve register NAME --home PATH [--project PATH]
+  pensieve sharing-server --home PATH Run the hosted invited-access reader
 
   pensieve capture "memory" [--session ID] [--project NAME]
   pensieve discover codex|claude [--root PATH] [--project PATH]
@@ -40,24 +51,47 @@ async function main() {
     home: { type: 'string' }, port: { type: 'string' }, host: { type: 'string' },
     session: { type: 'string' }, project: { type: 'string' }, ids: { type: 'string' },
     root: { type: 'string' }, limit: { type: 'string' }, help: { type: 'boolean' },
+    output: { type: 'string' }, 'no-browser': { type: 'boolean' },
   } });
-  const [command, arg, extra] = positionals;
-  if (!command || values.help) { process.stdout.write(help); return; }
+  const [requested = 'open', arg, extra] = positionals;
+  const command = ['open', 'share'].includes(requested) ? 'serve' : requested;
+  if (values.help) { process.stdout.write(help); return; }
   const need = (s: string | undefined, label: string): string => { if (!s) throw new Error(`${label} is required. See --help.`); return s; };
   const source = () => { if (arg !== 'codex' && arg !== 'claude') throw new Error('Source must be codex or claude'); return arg; };
   const out = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
+  if (command === 'pools') { out(settings().pools); return; }
+  if (command === 'register') { out(registerPool(need(arg, 'Pool name'), need(values.home, '--home'), values.project)); return; }
+  if (command === 'sharing-server') {
+    const ownerToken = need(process.env.PENSIEVE_OWNER_TOKEN, 'PENSIEVE_OWNER_TOKEN');
+    const port = Number(values.port ?? process.env.PORT ?? 7333);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be 1–65535');
+    const host = values.host ?? '127.0.0.1';
+    const publicUrl = process.env.PENSIEVE_PUBLIC_URL ?? `http://127.0.0.1:${port}`;
+    if (host !== '127.0.0.1' && !publicUrl.startsWith('https://')) throw new Error('Remote sharing requires PENSIEVE_PUBLIC_URL with HTTPS');
+    const shares = new ShareStore(join(need(values.home, '--home'), 'shares.sqlite'));
+    const server = createShareServer(shares, { ownerToken, publicUrl, mailer: mailerFromEnv() });
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, host, resolve); });
+    process.stdout.write(`Pensieve sharing service: ${publicUrl}\n`);
+    const stop = () => server.close(() => { shares.close(); process.exit(0); });
+    process.once('SIGINT', stop); process.once('SIGTERM', stop); return;
+  }
   if (command === 'discover') {
     const kind = source();
     const root = values.root ?? join(homedir(), kind === 'codex' ? '.codex/sessions' : '.claude/projects');
     out(values.project ? await discoverProject(root, kind, values.project) : await discover(root)); return;
   }
   if (command === 'workspace' && !values.home) throw new Error('Workspace requires --home pointing to a dedicated shared store');
-  const store = new Store(join(values.home ?? join(homedir(), '.pensieve'), 'memory.sqlite'), command === 'workspace' ? 'workspace' : 'private');
+  const pool = resolvePool(['serve', 'pack'].includes(command) ? arg : undefined, values.home);
+  const store = new Store(join(pool.home, 'memory.sqlite'), command === 'workspace' ? 'workspace' : 'private');
   const provider = providerFromEnv();
   const ids = () => need(values.ids, '--ids').split(',').filter(Boolean);
   let persistent = false;
   try {
     switch (command) {
+      case 'pack': {
+        const path = values.output ?? join(process.cwd(), `${pool.name}-${new Date().toISOString().replace(/[:.]/g, '-')}.pensieve.json`);
+        await writeBundle(path, store.bundle(store.list().map(m => m.id))); out({ file: path, memories: store.stats().memories }); break;
+      }
       case 'capture': {
         const text = need(arg, 'Text');
         if (text.length > 10_000) throw new Error('Memory exceeds 10,000 characters');
@@ -93,12 +127,20 @@ async function main() {
         const host = values.host ?? '127.0.0.1';
         if (!workspace && host !== '127.0.0.1') throw new Error('Private UI binds only to 127.0.0.1');
         if (workspace && !process.env.PENSIEVE_SERVER_TOKEN) throw new Error('Workspace requires PENSIEVE_SERVER_TOKEN (32+ characters)');
-        const port = Number(values.port ?? 7331);
-        if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be 1–65535');
-        const app = createApp(store, provider, { workspace, token: process.env.PENSIEVE_SERVER_TOKEN });
+        const autoPort = ['open', 'share'].includes(requested) && !values.port;
+        const port = Number(values.port ?? (autoPort ? 0 : 7331));
+        if (!Number.isInteger(port) || port < (autoPort ? 0 : 1) || port > 65535) throw new Error('Port must be 1–65535');
+        const app = createApp(store, provider, { workspace, token: process.env.PENSIEVE_SERVER_TOKEN, poolName: pool.name });
         await new Promise<void>((resolve, reject) => { app.server.once('error', reject); app.server.listen(port, host, resolve); });
         persistent = true;
-        process.stdout.write(workspace ? `Workspace listening on ${host}:${port}\n` : `Open http://127.0.0.1:${port}/#${app.token}\n`);
+        const address = app.server.address();
+        const actualPort = address && typeof address !== 'string' ? address.port : port;
+        const url = `http://127.0.0.1:${actualPort}/${requested === 'share' ? '?share=1' : ''}#${app.token}`;
+        process.stdout.write(workspace ? `Workspace listening on ${host}:${port}\n` : `Open ${url}\n`);
+        if (!workspace && !values['no-browser'] && ['open', 'share'].includes(requested)) {
+          const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'rundll32' : 'xdg-open';
+          execFile(opener, process.platform === 'win32' ? ['url.dll,FileProtocolHandler', url] : [url], () => {});
+        }
         const stop = () => app.server.close(() => { store.close(); process.exit(0); });
         process.once('SIGINT', stop); process.once('SIGTERM', stop); break;
       }

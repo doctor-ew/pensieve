@@ -1,4 +1,4 @@
-# Pensieve v0.1
+# Pensieve v0.2
 
 ## Data flow
 
@@ -38,11 +38,17 @@ Implemented: Codex/Claude JSONL import and single-file watching; explicit live
 capture; local and opt-in cloud embeddings; CLI and local UI; portable bundles;
 Git export; self-hosted shared-token exchange.
 
-Not yet implemented: managed hosting, user accounts, invitations, fine-grained
+Executive sharing adds a separate snapshot store, invited email-code sign-in,
+expiry/revocation, and a reader with source-backed Q&A. Local named pools and agent
+shortcuts simplify opening, sharing, and downloading. The single owner configures
+hosting once; recipient email delivery requires a configured sender. See
+[executive sharing](EXECUTIVE-SHARING.md) and [access implementation](../src/executive.ts).
+
+Not yet implemented: managed hosting, multi-owner accounts, invitation emails, fine-grained
 permissions, automatic secret detection, automatic session hooks, MCP server,
 semantic summaries, incremental byte-offset tailing, large-corpus ANN indexing,
 deletion/retention, encrypted-at-rest storage, or browser UI for remote workspaces.
-The v0.1 HTTP service is a small trusted-team prototype, not a multi-tenant service.
+The HTTP services are small trusted-team prototypes, not a multi-tenant service.
 
 See the [command surface](../src/cli.ts) and [tests](../test/core.test.ts) for the
 implemented boundary. These gaps should become separate scoped issues.

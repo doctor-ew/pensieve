@@ -4,6 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { Store, validateBundle } from './store.js';
 import { makeMemory, readSession } from './sessions.js';
 import type { EmbeddingProvider } from './types.js';
+import { draftBrief, validateShare } from './executive.js';
+import { shareConfig, shareRequest } from './share-client.js';
+import { settings, saveSettings } from './pools.js';
 
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = []; let size = 0;
@@ -22,7 +25,7 @@ function required(value: unknown, name: string): string {
   return value;
 }
 
-export function createApp(store: Store, provider: EmbeddingProvider, options: { token?: string; workspace?: boolean } = {}) {
+export function createApp(store: Store, provider: EmbeddingProvider, options: { token?: string; workspace?: boolean; poolName?: string } = {}) {
   const token = options.token ?? randomBytes(32).toString('hex');
   if (token.length < 32) throw new Error('Server token must be at least 32 characters');
   const workspace = options.workspace ?? false;
@@ -53,12 +56,37 @@ export function createApp(store: Store, provider: EmbeddingProvider, options: { 
         reply(200, { format: 'pensieve/v1', createdAt: new Date().toISOString(), memories: store.list() }); return;
       }
       if (req.method === 'GET' && path === '/api/memories') { reply(200, { ...store.stats(), items: store.list() }); return; }
-      if (req.method === 'GET' && path === '/api/status') { reply(200, { ...store.stats(), provider: provider.identity }); return; }
+      if (req.method === 'GET' && path === '/api/status') { reply(200, { ...store.stats(), provider: provider.identity, poolName: options.poolName ?? 'Memory pool', sharing: !!(shareConfig().url && shareConfig().token), shareService: shareConfig().url ?? '' }); return; }
+      if (req.method === 'GET' && path === '/api/shares') { reply(200, await shareRequest()); return; }
       if (req.method !== 'POST') { reply(404, { error: 'Not found' }); return; }
       if (busy) { reply(409, { error: 'Another operation is running; retry shortly' }); return; }
       busy = true; ownsLock = true;
       const input = await body(req);
+      const selectedBundle = () => {
+        if (input.all === true) return store.bundle(store.list().map(m => m.id));
+        if (!Array.isArray(input.ids) || input.ids.some(x => typeof x !== 'string')) throw new Error('Select memories or explicitly choose the whole pool');
+        return store.bundle(input.ids);
+      };
       switch (path) {
+        case '/api/sharing-settings': {
+          const url = new URL(required(input.url, 'Service URL'));
+          if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname))) throw new Error('Use an HTTPS service URL');
+          const key = required(input.token, 'Owner key'); if (key.length < 32) throw new Error('Owner key must contain at least 32 characters');
+          await shareRequest('', undefined, { url: url.origin, token: key });
+          saveSettings({ ...settings(), shareService: url.origin, shareToken: key }); reply(200, { connected: true }); break;
+        }
+        case '/api/share-preview': {
+          const bundle = selectedBundle();
+          reply(200, { count: bundle.memories.length, title: options.poolName ?? 'Memory pool', brief: draftBrief(bundle.memories) }); break;
+        }
+        case '/api/share': {
+          const request = validateShare({ title: input.title, brief: input.brief, recipients: input.recipients, days: input.days, cloudAllowed: input.cloudAllowed, bundle: selectedBundle() });
+          reply(201, await shareRequest('', request)); break;
+        }
+        case '/api/revoke': {
+          const id = required(input.id, 'Share ID'); if (!/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid share ID');
+          reply(200, await shareRequest(`/${id}/revoke`, {})); break;
+        }
         case '/api/capture': {
           const text = required(input.text, 'Text');
           if (text.length > 10_000) throw new Error('Memory exceeds 10,000 characters');
@@ -73,8 +101,7 @@ export function createApp(store: Store, provider: EmbeddingProvider, options: { 
         case '/api/index': reply(200, { indexed: await store.index(provider) }); break;
         case '/api/search': reply(200, { hits: await store.search(required(input.query, 'Query'), provider) }); break;
         case '/api/export': {
-          if (!Array.isArray(input.ids) || input.ids.some(x => typeof x !== 'string')) throw new Error('Explicit memory IDs required');
-          reply(200, store.bundle(input.ids)); break;
+          reply(200, selectedBundle()); break;
         }
         case '/api/bundle': reply(200, { imported: store.add(validateBundle(input).memories) }); break;
         default: reply(404, { error: 'Not found' });
