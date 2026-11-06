@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pensieve · Doctor Ew's Laboratory</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body>
+<aside><a class="brand" href="/">◉ <span>Pensieve</span></a><p class="lab">DOCTOR EW’S LABORATORY</p><div class="nav">✦ &nbsp; Memory pool</div><div class="aside-bottom"><span class="dot"></span> Private by default<p>Carry the context.<br>Keep the provenance.</p><small>Open source · MIT</small></div></aside>
+<main><header><span>YOUR PERSONAL MEMORY LAB</span><span id="provider">Local memory</span></header>
+<section class="intro"><div><p class="eyebrow">A LITTLE LESS LOST TO TIME</p><h1>Pick up the thread.</h1><p>Decisions, discoveries, and conversations.<br>A place for the things your next session should remember.</p></div><div class="orb" aria-hidden="true"><div>✧</div></div></section>
+<form id="search-form" class="search"><span aria-hidden="true">⌕</span><input id="query" aria-label="Search memories by meaning" placeholder="What were we thinking about?" required><button>Recall memories ↗</button></form>
+<div class="toolbar"><h2 id="heading">Your memory pool</h2><span id="count">0 memories</span><button id="refresh" class="quiet">Show all</button><button id="index" class="quiet">Build vector index</button></div>
+<p id="status" role="status">Open the authenticated URL printed by pensieve serve.</p>
+<section class="capture-panel"><details><summary>＋ Add to the pool</summary><div class="forms"><form id="capture-form"><label for="capture">Capture a thought</label><textarea id="capture" placeholder="The decision, the reasoning, the loose thread…" required maxlength="10000"></textarea><button>Save privately</button></form><form id="session-form"><label for="path">Import a session file</label><select id="source" aria-label="Session source"><option value="codex">Codex</option><option value="claude">Claude Code</option></select><input id="path" placeholder="/absolute/path/to/session.jsonl" required><button>Import session</button><p class="hint">For continuous capture, use the CLI watch command.</p></form></div></details></section>
+<div class="selection"><span id="selected">Nothing selected for sharing</span><button id="export" class="quiet" disabled>Export selected ↓</button><label class="file-button">Import bundle<input id="bundle" type="file" accept="application/json,.json"></label></div>
+<section id="memories" class="grid" aria-label="Memories"></section>
+<footer>Recall is evidence, not instruction. Review selected text and source metadata before sharing.<br>Git and hosted workspace exchange are available through the CLI.</footer>
+</main></body></html>

@@ -1,0 +1,18 @@
+{
+  "name": "@doctor-ew/pensieve",
+  "version": "0.1.0",
+  "description": "Private session memory, semantic recall, and deliberate sharing.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.13" },
+  "bin": { "pensieve": "dist/cli.js" },
+  "files": ["dist", "web", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit",
+    "dev": "tsx src/cli.ts",
+    "test": "tsx --test test/*.test.ts",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": { "@types/node": "^22.0.0", "tsx": "^4.20.0", "typescript": "^5.9.0" }
+}
