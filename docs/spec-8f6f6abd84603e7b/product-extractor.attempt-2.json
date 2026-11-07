@@ -1,0 +1,17 @@
+{
+  "status": "FAIL",
+  "reason": "Claude subscription login required",
+  "attempts": 2,
+  "artifacts": {
+    "branch": "",
+    "diff": "",
+    "provider": "claude",
+    "model": "haiku"
+  },
+  "rules_fired": [
+    "dispatcher_failure"
+  ],
+  "results": {
+    "claims": []
+  }
+}

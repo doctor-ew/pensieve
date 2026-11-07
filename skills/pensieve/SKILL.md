@@ -28,3 +28,24 @@ by remote recipients. Do not upload private session data merely to test deployme
 
 In Claude Code, the `/pensieve` command routes here. In Codex, invoke the installed
 `$pensieve` skill. A normal shell uses `pensieve` without a slash.
+
+## Create and contribute to a team pool
+
+For a configured personal team connection, use `pensieve team-pools` to resolve
+available names to IDs. Save the user's selected reasoning and decisions with
+`pensieve save "summary" --pool ID --citation "source reference"`; do not
+invent evidence or include unrequested raw conversation history. `--config FILE`
+applies private/shared/off policy. Without a shared target, saves stay private.
+`pensieve recall "question" --pool ID` recalls team context; `pensieve sync
+--pool ID --config FILE` exchanges authorized memories with the local database.
+
+When MCP is configured, prefer `list_pools`, `save_memory`, `recall_memories`, and
+`prepare_share` tools. Resolve ambiguous pool names before writing. Respect
+synthetic labels, source citations and ticket references. A returned bundle is
+not an emailed invitation; use the creator UI to review a brief and recipient
+selection before creating links. Never claim automatic access to other chats.
+
+For conversational Claude, a remote connector uses the hosted `/mcp` endpoint
+with OAuth and a personal creator invitation; setup depends on host support.
+For terminal agents use `pensieve mcp` with their own saved personal connection.
+Never provide the operator credential to an agent. See `docs/TEAM-SETUP.md`.

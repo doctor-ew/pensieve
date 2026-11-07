@@ -103,7 +103,7 @@ export function createApp(store: Store, provider: EmbeddingProvider, options: { 
         case '/api/export': {
           reply(200, selectedBundle()); break;
         }
-        case '/api/bundle': reply(200, { imported: store.add(validateBundle(input).memories) }); break;
+        case '/api/bundle': { const bundle = validateBundle(input); reply(200, { imported: store.add(bundle.memories, bundle.provenance) }); break; }
         default: reply(404, { error: 'Not found' });
       }
     } catch (error) { reply(400, { error: error instanceof Error ? error.message : 'Request failed' }); }

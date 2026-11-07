@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "parent": "spec:docs/pensieve-platform/BUILD-BRIEF.md",
+  "requirements": [
+    "AC-01",
+    "AC-02",
+    "AC-03",
+    "AC-04",
+    "AC-05",
+    "AC-06",
+    "AC-07",
+    "AC-08",
+    "AC-09",
+    "AC-10",
+    "AC-11",
+    "AC-12",
+    "AC-13",
+    "AC-14",
+    "AC-15"
+  ],
+  "children": [
+    {
+      "id": "policy-provenance",
+      "ref": "spec:docs/spec-8f6f6abd84603e7b/children/policy-provenance.md",
+      "depends_on": [],
+      "requirements": [
+        "AC-02",
+        "AC-04",
+        "AC-10",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "integration": false
+    },
+    {
+      "id": "shared-pools",
+      "ref": "spec:docs/spec-8f6f6abd84603e7b/children/shared-pools.md",
+      "depends_on": [
+        "policy-provenance"
+      ],
+      "requirements": [
+        "AC-03",
+        "AC-04",
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "integration": false
+    },
+    {
+      "id": "creator-sharing",
+      "ref": "spec:docs/spec-8f6f6abd84603e7b/children/creator-sharing.md",
+      "depends_on": [
+        "shared-pools"
+      ],
+      "requirements": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "integration": false
+    },
+    {
+      "id": "agent-capture",
+      "ref": "spec:docs/spec-8f6f6abd84603e7b/children/agent-capture.md",
+      "depends_on": [
+        "shared-pools"
+      ],
+      "requirements": [
+        "AC-02",
+        "AC-04",
+        "AC-05",
+        "AC-07",
+        "AC-09",
+        "AC-10",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "integration": false
+    },
+    {
+      "id": "integration",
+      "ref": "spec:docs/spec-8f6f6abd84603e7b/children/integration.md",
+      "depends_on": [
+        "creator-sharing",
+        "agent-capture"
+      ],
+      "requirements": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "integration": true
+    }
+  ]
+}

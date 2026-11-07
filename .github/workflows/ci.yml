@@ -19,6 +19,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check-types
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test
       - run: pnpm build
   container:
@@ -41,4 +42,21 @@ jobs:
             sleep 1
           done
           docker logs pensieve-smoke
+          exit 1
+      - name: Verify team service container health and connector metadata
+        run: |
+          docker run --rm -d --name pensieve-team-smoke -p 18081:8080 \
+            -e PORT=8080 \
+            -e PENSIEVE_PUBLIC_URL=https://synthetic.example.com \
+            -e PENSIEVE_OWNER_TOKEN=synthetic-ci-owner-token-not-a-real-secret \
+            pensieve-smoke node dist/cli.js team-server --home /data --host 0.0.0.0
+          trap 'docker stop pensieve-team-smoke >/dev/null' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent -H 'Host: synthetic.example.com' http://127.0.0.1:18081/health; then
+              curl --fail --silent -H 'Host: synthetic.example.com' http://127.0.0.1:18081/.well-known/oauth-authorization-server
+              exit $?
+            fi
+            sleep 1
+          done
+          docker logs pensieve-team-smoke
           exit 1

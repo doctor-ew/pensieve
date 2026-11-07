@@ -4,12 +4,13 @@ RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
 COPY package.json pnpm-lock.yaml tsconfig.json ./
 RUN pnpm install --frozen-lockfile
 COPY src ./src
-RUN pnpm build
+RUN pnpm build && pnpm prune --prod
 
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
 COPY package.json ./
 COPY web ./web
 EXPOSE 8080

@@ -1,0 +1,31 @@
+{
+  "batch_id": "20261107-0136",
+  "created": "2026-11-07T01:36:05Z",
+  "source": "explicit",
+  "source_value": "spec:docs/pensieve-platform/BUILD-BRIEF.md",
+  "batch_n": 1,
+  "tickets": [
+    "spec:docs/pensieve-platform/BUILD-BRIEF.md"
+  ],
+  "current": null,
+  "statuses": {
+    "spec:docs/pensieve-platform/BUILD-BRIEF.md": {
+      "status": "blocked",
+      "reason": "Mandatory grounding failed: local transport unknown; configured Claude repair requires subscription login. Five-child plan validated, no implementation gates passed.",
+      "started_at": "",
+      "completed_at": "2026-11-07T01:40:54Z",
+      "receipt": "docs/spec-8f6f6abd84603e7b/controller-receipt.json"
+    }
+  },
+  "skip_reasons": {
+    "spec:docs/pensieve-platform/BUILD-BRIEF.md": null
+  },
+  "metrics": {
+    "complete": 0,
+    "skipped": 0,
+    "failed": 0,
+    "blocked": 1,
+    "needs-decision": 0,
+    "pending": 0
+  }
+}

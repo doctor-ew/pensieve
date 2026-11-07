@@ -31,3 +31,26 @@ test('invalid downloads are rejected before creating a local pool', async () => 
   await assert.rejects(unpack(file, dir), /Invalid/);
   await assert.rejects(access(join(dir, '.pensieve')));
 });
+
+test('portable authored evidence survives local import, selected reexport and unpack with unverified origin', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'pensieve-provenance-'));
+  const file = join(dir,'download.json');
+  const memory = makeMemory({text:'Synthetic architecture decision',source:'manual',role:'assistant',session:'test',timestamp:'',locator:'test:L1',project:'/source'});
+  const {id: _id,...source} = memory;
+  const other = makeMemory({...source,text:'Excluded secret'});
+  const origin = {memoryId:memory.id,contributorId:'author',contributorName:'Synthetic author',poolId:'team',createdAt:'2026-01-01T00:00:00Z',sourceServer:'server-uuid',verification:'source-server' as const};
+  const bundle = {format:'pensieve/v1',createdAt:'',memories:[memory],provenance:[origin]};
+  await writeFile(file,JSON.stringify(bundle));
+  assert.equal((await unpack(file,dir)).imported,1); assert.equal((await unpack(file,dir)).imported,0);
+  const sidecar = (await readFile(join(dir,'.pensieve/provenance.jsonl'),'utf8')).trim().split('\n').map(x=>JSON.parse(x));
+  assert.deepEqual(sidecar,[{...origin,verification:'unverified-import'}]);
+  assert.match(await readFile(join(dir,'.pensieve/START-HERE.md'),'utf8'),/provenance.jsonl/);
+  const store=new Store(join(dir,'.pensieve/memory.sqlite'));
+  try {
+    store.add([other]);
+    assert.deepEqual(store.bundle([memory.id]).provenance,sidecar);
+    assert.equal(store.bundle([other.id]).provenance,undefined);
+    assert.throws(()=>store.add([{...memory,text:'conflict'}],[{...origin,contributorId:'spoof'}]),/conflict/i);
+    assert.deepEqual(store.bundle([memory.id]).provenance,sidecar);
+  } finally {store.close();}
+});

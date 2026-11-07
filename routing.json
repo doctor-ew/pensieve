@@ -1,0 +1,241 @@
+{
+  "$comment": [
+    "Active routing consumed by scripts/nightshift-agent.sh. Exact role/gear routes are required.",
+    "Provider envelopes are normalized and validated locally against strict role contracts."
+  ],
+  "version": 1,
+  "providers": {
+    "claude": {
+      "cmd": "claude",
+      "args": [
+        "-p",
+        "--output-format",
+        "json"
+      ],
+      "model_flag": "--model",
+      "agent_flag": "--agents",
+      "schema_enforced": true,
+      "$comment": "Role body is injected inline via --agents <json>; no ~/.claude/agents install needed."
+    },
+    "codex": {
+      "cmd": "codex",
+      "args": [
+        "exec",
+        "--json",
+        "--skip-git-repo-check"
+      ],
+      "model_flag": "--model",
+      "schema_flag": "--output-schema",
+      "sandbox_flag": "--sandbox",
+      "schema_enforced": true,
+      "$comment": "codex exec enforces the JSON return contract at the provider via --output-schema."
+    },
+    "local": {
+      "cmd": "codex",
+      "args": [
+        "exec",
+        "--oss",
+        "--local-provider",
+        "ollama",
+        "--json",
+        "--skip-git-repo-check"
+      ],
+      "model_flag": "-m",
+      "schema_flag": "--output-schema",
+      "sandbox_flag": "--sandbox",
+      "schema_enforced": true,
+      "$comment": "Codex supplies the agentic tool loop around a local model. Do not hand-roll one. Requires a coding-tuned model in the 14B-32B range; llama3.2:3b is not adequate for any role here."
+    }
+  },
+  "defaults": {
+    "provider": "claude",
+    "sandbox": "read-only"
+  },
+  "roles": {
+    "nightshift-code-fact-extractor": {
+      "prompt": "agents/nightshift-code-fact-extractor.md",
+      "sandbox": "read-only",
+      "gears": {
+        "1": {
+          "provider": "claude",
+          "model": "haiku"
+        },
+        "2": {
+          "provider": "claude",
+          "model": "haiku"
+        },
+        "3": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "4": {
+          "provider": "claude",
+          "model": "sonnet"
+        }
+      },
+      "$comment": "Read-only search role. Strongest candidate for a local model once one is pulled — no design judgment required."
+    },
+    "nightshift-spec-writer": {
+      "prompt": "agents/nightshift-spec-writer.md",
+      "sandbox": "read-only",
+      "gears": {
+        "1": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "2": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "3": {
+          "provider": "claude",
+          "model": "opus"
+        },
+        "4": {
+          "provider": "claude",
+          "model": "opus"
+        }
+      },
+      "$comment": "Codex/local are always read-only; spec file writes require a separately authorized integration."
+    },
+    "nightshift-engineer": {
+      "prompt": "agents/nightshift-engineer.md",
+      "sandbox": "workspace-write",
+      "gears": {
+        "1": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "2": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "3": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "4": {
+          "provider": "claude",
+          "model": "opus"
+        }
+      },
+      "$comment": "Gear is the escalation axis (Phase 2, dp-ocw). Effort rises with gear; provider may also change."
+    },
+    "nightshift-architect": {
+      "prompt": "agents/nightshift-architect.md",
+      "sandbox": "workspace-write",
+      "gears": {
+        "1": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "2": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "3": {
+          "provider": "claude",
+          "model": "opus"
+        },
+        "4": {
+          "provider": "claude",
+          "model": "opus"
+        }
+      }
+    },
+    "nightshift-behavior-reviewer": {
+      "prompt": "agents/nightshift-behavior-reviewer.md",
+      "sandbox": "read-only",
+      "gears": {
+        "1": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "2": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "3": {
+          "provider": "claude",
+          "model": "opus"
+        },
+        "4": {
+          "provider": "claude",
+          "model": "opus"
+        }
+      }
+    },
+    "nightshift-run-all-tests": {
+      "prompt": "agents/nightshift-run-all-tests.md",
+      "sandbox": "workspace-write",
+      "gears": {
+        "1": {
+          "provider": "claude",
+          "model": "haiku"
+        },
+        "2": {
+          "provider": "claude",
+          "model": "haiku"
+        },
+        "3": {
+          "provider": "claude",
+          "model": "haiku"
+        },
+        "4": {
+          "provider": "claude",
+          "model": "haiku"
+        }
+      },
+      "$comment": "Runs commands and parses output. No design role — effort does not need to rise with gear."
+    },
+    "nightshift-repair-analyst": {
+      "prompt": "agents/nightshift-repair-analyst.md",
+      "sandbox": "read-only",
+      "gears": {
+        "1": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "2": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "3": {
+          "provider": "claude",
+          "model": "sonnet"
+        },
+        "4": {
+          "provider": "claude",
+          "model": "opus"
+        }
+      },
+      "$comment": "Gear is the escalation axis (Phase 2, dp-ocw). Effort rises with gear; provider may also change."
+    }
+  },
+  "adversarial": {
+    "cross_provider": true,
+    "$comment": [
+      "With --adversarial, cross_provider requires actual --author-provider provenance.",
+      "Retain a different primary or use the first different-provider alternate; fail closed if none exists."
+    ],
+    "routes": [
+      {
+        "provider": "codex",
+        "model": "gpt-5.4"
+      },
+      {
+        "provider": "claude",
+        "model": "sonnet"
+      }
+    ]
+  },
+  "profiles": {
+    "workshop": {
+      "provider": "claude",
+      "writer_model": "sonnet",
+      "reviewer_model": "sonnet",
+      "cross_provider": false,
+      "review_isolation": "fresh tool-free session; human spec approval"
+    }
+  }
+}

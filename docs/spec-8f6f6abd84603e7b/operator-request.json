@@ -1,0 +1,21 @@
+{
+  "question": "Please resolve the three choices explicitly left open in BUILD-BRIEF.md: (1) Which first Claude conversational-app workflow should we prioritize: a supported connector/tool connection, or user-export/upload? (2) Should the default distillation input be user/agent-supplied memory, or an explicitly configured local model? (3) May repository/conversation overrides choose private capture, exclusion, and another authorized shared pool, or only private capture/exclusion? Choose a complete combination below or specify all three in free text.",
+  "reason": "BUILD-BRIEF.md explicitly preserves these three choices as open. No DECISIONS.md or recorded dashboard answers were found. Destination and distillation choices must not be inferred. A selected connector workflow still requires authoritative capability verification and independent gates; it does not authorize scraping, paid infrastructure, or automatic third-party model calls.",
+  "options": [
+    {
+      "id": "connector-supplied-flexible",
+      "label": "Connector; supplied memory; authorized destination overrides",
+      "description": "Prioritize verifying a supported Claude connector/tool workflow; default to supplied distilled memory; allow private, exclude, or another authorized pool overrides."
+    },
+    {
+      "id": "upload-supplied-flexible",
+      "label": "Upload first; supplied memory; authorized destination overrides",
+      "description": "Prioritize user export/upload while retaining the required Claude connection target; default to supplied distilled memory; allow private, exclude, or another authorized pool overrides."
+    },
+    {
+      "id": "connector-local-restrictive",
+      "label": "Connector; configured local model; restrictive overrides",
+      "description": "Prioritize a supported Claude connector/tool workflow; require explicit local-model configuration for generation with supplied memory still available; overrides may restrict to private or exclude but cannot select another shared pool."
+    }
+  ]
+}

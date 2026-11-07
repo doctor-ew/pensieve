@@ -1,19 +1,21 @@
+import { validateMemoryRecord, validateProvenance } from './memory-record.js';
+import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { cosine, validateVector } from './embeddings.js';
-import type { Bundle, EmbeddingProvider, Hit, Memory } from './types.js';
+import type { Bundle, EmbeddingProvider, Hit, Memory, MemoryProvenance } from './types.js';
 
 export function validateBundle(value: unknown): Bundle {
   const bundle = value as Bundle;
   if (!bundle || bundle.format !== 'pensieve/v1' || typeof bundle.createdAt !== 'string' || !Array.isArray(bundle.memories) || bundle.memories.length > 10_000) throw new Error('Invalid pensieve/v1 bundle');
   const ids = new Set<string>();
   for (const m of bundle.memories) {
-    if (!m || !['id', 'text', 'session', 'timestamp', 'locator', 'project'].every(k => typeof m[k as keyof Memory] === 'string') ||
-      !/^[a-f0-9]{64}$/.test(m.id) || !m.text.trim() || m.text.length > 10_000 ||
-      !['codex', 'claude', 'manual'].includes(m.source) || !['user', 'assistant'].includes(m.role) || ids.has(m.id)) throw new Error('Invalid or duplicate memory in bundle');
+    validateMemoryRecord(m);
+    if (ids.has(m.id)) throw new Error('Invalid or duplicate memory in bundle');
     ids.add(m.id);
   }
+  if (bundle.provenance !== undefined) validateProvenance(bundle.provenance, ids);
   return bundle;
 }
 
@@ -26,7 +28,8 @@ export class Store {
     this.db.exec(`PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS vectors (id TEXT NOT NULL REFERENCES memories(id), model TEXT NOT NULL, vector TEXT NOT NULL, PRIMARY KEY(id,model));`);
+      CREATE TABLE IF NOT EXISTS vectors (id TEXT NOT NULL REFERENCES memories(id), model TEXT NOT NULL, vector TEXT NOT NULL, PRIMARY KEY(id,model));
+      CREATE TABLE IF NOT EXISTS origins (id TEXT NOT NULL REFERENCES memories(id), origin TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(id,origin));`);
     const existing = this.db.prepare('SELECT value FROM metadata WHERE key=?').get('mode') as { value: string } | undefined;
     const populated = Number(this.db.prepare('SELECT COUNT(*) AS n FROM memories').get()!.n) > 0;
     if ((existing && existing.value !== mode) || (!existing && populated && mode === 'workspace')) {
@@ -35,7 +38,9 @@ export class Store {
     this.db.prepare('INSERT OR IGNORE INTO metadata VALUES (?,?)').run('mode', mode);
   }
   close() { this.db.close(); }
-  add(memories: Memory[]): number {
+  add(memories: Memory[], provenance?: MemoryProvenance[]): number {
+    memories.forEach(validateMemoryRecord);
+    const origins = provenance === undefined ? [] : validateProvenance(provenance, new Set(memories.map(m => m.id)));
     let count = 0;
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -45,6 +50,10 @@ export class Store {
         const old = existing.get(m.id) as { body: string } | undefined;
         if (old && JSON.stringify(JSON.parse(old.body)) !== JSON.stringify(m)) throw new Error(`Conflicting content for memory ${m.id}`);
         count += Number(insert.run(m.id, JSON.stringify(m)).changes);
+      }
+      for (const p of origins) {
+        const origin = createHash('sha256').update(JSON.stringify([p.sourceServer, p.poolId, p.memoryId, p.contributorId, p.createdAt])).digest('hex');
+        this.db.prepare('INSERT OR IGNORE INTO origins VALUES (?,?,?)').run(p.memoryId, origin, JSON.stringify({ ...p, verification: 'unverified-import' }));
       }
       this.db.exec('COMMIT');
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
@@ -96,6 +105,8 @@ export class Store {
   }
   bundle(ids: string[]): Bundle {
     if (!ids.length) throw new Error('Select at least one memory explicitly');
-    return { format: 'pensieve/v1', createdAt: new Date().toISOString(), memories: [...new Set(ids)].map(id => this.get(id)) };
+    const memories = [...new Set(ids)].map(id => this.get(id));
+    const provenance = memories.flatMap(m => (this.db.prepare('SELECT body FROM origins WHERE id=? ORDER BY rowid').all(m.id) as {body:string}[]).map(row => JSON.parse(row.body) as MemoryProvenance));
+    return { format: 'pensieve/v1', createdAt: new Date().toISOString(), memories, ...(provenance.length ? { provenance } : {}) };
   }
 }
