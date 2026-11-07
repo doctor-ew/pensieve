@@ -49,3 +49,5 @@ For conversational Claude, a remote connector uses the hosted `/mcp` endpoint
 with OAuth and a personal creator invitation; setup depends on host support.
 For terminal agents use `pensieve mcp` with their own saved personal connection.
 Never provide the operator credential to an agent. See `docs/TEAM-SETUP.md`.
+
+After saving with MCP, call `index_memories` for the same pool before recalling.

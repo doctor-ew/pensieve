@@ -1,4 +1,5 @@
 import type { EmbeddingProvider } from './types.js';
+import {hostedEmbeddings} from './hosted-embeddings.js';
 
 export function validateVector(value: unknown): asserts value is number[] {
   if (!Array.isArray(value) || !value.length || value.some(x => typeof x !== 'number' || !Number.isFinite(x)) || !value.some(x => x !== 0)) {
@@ -8,7 +9,8 @@ export function validateVector(value: unknown): asserts value is number[] {
 
 export function providerFromEnv(): EmbeddingProvider {
   const provider = process.env.PENSIEVE_PROVIDER ?? 'ollama';
-  if (!['ollama', 'openai'].includes(provider)) throw new Error('PENSIEVE_PROVIDER must be ollama or openai');
+  if(provider==='transformers')return hostedEmbeddings(process.env.PENSIEVE_MODEL_CACHE);
+  if (!['ollama', 'openai'].includes(provider)) throw new Error('PENSIEVE_PROVIDER must be ollama, openai or transformers');
   const cloud = provider === 'openai';
   const model = process.env.PENSIEVE_MODEL ?? (cloud ? 'text-embedding-3-small' : 'embeddinggemma');
   const gemma = !cloud && model.split(':')[0] === 'embeddinggemma';
