@@ -75,16 +75,16 @@ test('official SDK HTTP client saves, recalls and exports only authorized data; 
  const f=await fixture();const clients:Client[]=[];try{
   const registration=await f.register();const access=await f.token(registration.client_id);
   const client=new Client({name:'fixture',version:'1'});clients.push(client);await client.connect(new StreamableHTTPClientTransport(new URL(f.url+'/mcp'),{requestInit:{headers:{Authorization:`Bearer ${access}`}}}));
-  const listed=await client.listTools();assert.equal(listed.tools.length,4);
+  const listed=await client.listTools();assert.equal(listed.tools.length,5);
   const saved=await client.callTool({name:'save_memory',arguments:{poolId:f.pool.id,text:'We chose local-first storage.',repository:'/fixture/repo',conversation:'fixture-session',synthetic:true}});assert.ok(!saved.isError);
-  await f.store.index(f.alice.user.id,f.pool.id,f.provider);
+  assert.ok(!(await client.callTool({name:'index_memories',arguments:{poolId:f.pool.id}})).isError);
   const recalled=await client.callTool({name:'recall_memories',arguments:{poolId:f.pool.id,query:'storage decision'}});assert.ok(JSON.stringify(recalled).includes('local-first'));
   const id=f.store.listMemories(f.alice.user.id,f.pool.id)[0].memory.id;
   const exported=await client.callTool({name:'prepare_share',arguments:{poolId:f.pool.id,ids:[id]}});assert.ok(JSON.stringify(exported).includes(id));assert.ok(!JSON.stringify(exported).includes(f.alice.token));
   f.store.setPolicy(f.alice.user.id,f.pool.id,'conversation','fixture-session',{destination:'off'});
   const blocked=await client.callTool({name:'save_memory',arguments:{poolId:f.pool.id,text:'must not save',conversation:'fixture-session'}});assert.equal(blocked.isError,true);assert.equal(f.store.listMemories(f.alice.user.id,f.pool.id).length,1);
   const bobAccess=await f.token(registration.client_id,f.bob.token);const bobClient=new Client({name:'bob',version:'1'});clients.push(bobClient);await bobClient.connect(new StreamableHTTPClientTransport(new URL(f.url+'/mcp'),{requestInit:{headers:{Authorization:`Bearer ${bobAccess}`}}}));
-  for(const request of [{name:'save_memory',arguments:{poolId:f.pool.id,text:'evil'}},{name:'recall_memories',arguments:{poolId:f.pool.id,query:'storage'}},{name:'prepare_share',arguments:{poolId:f.pool.id,ids:[id]}}]) {const denied=await bobClient.callTool(request);assert.equal(denied.isError,true);assert.ok(!JSON.stringify(denied).includes('local-first'));}
+  for(const request of [{name:'index_memories',arguments:{poolId:f.pool.id}},{name:'save_memory',arguments:{poolId:f.pool.id,text:'evil'}},{name:'recall_memories',arguments:{poolId:f.pool.id,query:'storage'}},{name:'prepare_share',arguments:{poolId:f.pool.id,ids:[id]}}]) {const denied=await bobClient.callTool(request);assert.equal(denied.isError,true);assert.ok(!JSON.stringify(denied).includes('local-first'));}
   const malformed=await fetch(f.url+'/mcp',{method:'POST',headers:{Authorization:`Bearer ${f.alice.token}`,'Content-Type':'application/json'},body:'{}'});assert.equal(malformed.status,401);
   const replay=await fetch(f.url+'/mcp',{method:'POST',headers:{Authorization:`Bearer ${access}`,'mcp-session-id':'foreign-session','Content-Type':'application/json'},body:'{}'});assert.equal(replay.status,400);
   f.store.revokeUser(f.alice.user.id);await assert.rejects(client.listTools());
@@ -103,7 +103,7 @@ test('official SDK starts a real stdio subprocess without credentials on stdout'
  const script=`import {TeamStore} from './src/team-store.ts'; import {connectStdio} from './src/agent-server.ts'; const store=new TeamStore(':memory:');const user=store.createUser('Stdio fixture');store.createPool(user.user.id,'Stdio private','private');await connectStdio(store,user.token);`;
  const client=new Client({name:'stdio-proof',version:'1'});
  const transport=new StdioClientTransport({command:process.execPath,args:['--import','tsx','--input-type=module','-e',script],cwd:process.cwd(),stderr:'pipe'});
- try{await client.connect(transport);const response=await client.callTool({name:'list_pools',arguments:{}});assert.ok(!response.isError);assert.ok(JSON.stringify(response).includes('Stdio private'));assert.equal((await client.listTools()).tools.length,4);}
+ try{await client.connect(transport);const response=await client.callTool({name:'list_pools',arguments:{}});assert.ok(!response.isError);assert.ok(JSON.stringify(response).includes('Stdio private'));assert.equal((await client.listTools()).tools.length,5);}
  finally{await client.close();}
 });
 
@@ -117,7 +117,7 @@ test('CLI mcp subprocess connects to remote team account and enforces isolation 
   const bobPools=await bob.callTool({name:'list_pools',arguments:{}});assert.ok(!JSON.stringify(bobPools).includes(f.pool.id));
   const saved=await alice.callTool({name:'save_memory',arguments:{poolId:f.pool.id,text:'Remote stdio decision',conversation:'remote-session',synthetic:true}});assert.ok(!saved.isError,JSON.stringify(saved));assert.equal(f.store.listMemories(f.alice.user.id,f.pool.id)[0].memory.synthetic,true);
   const denied=await bob.callTool({name:'save_memory',arguments:{poolId:f.pool.id,text:'Should not persist'}});assert.equal(denied.isError,true);
-  await f.store.index(f.alice.user.id,f.pool.id,f.provider);
+  assert.ok(!(await alice.callTool({name:'index_memories',arguments:{poolId:f.pool.id}})).isError);
   const recalled=await alice.callTool({name:'recall_memories',arguments:{poolId:f.pool.id,query:'decision'}});assert.ok(JSON.stringify(recalled).includes('Remote stdio decision'));
   f.store.revokeUser(f.alice.user.id);assert.equal((await alice.callTool({name:'list_pools',arguments:{}})).isError,true);
  }finally{await Promise.all(clients.map(c=>c.close()));await f.close();}

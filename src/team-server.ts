@@ -33,7 +33,9 @@ export function createTeamServer(store: TeamStore, options: TeamServerOptions) {
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     const reply = (status: number, data: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
     try {
-      if (req.headers.host !== publicUrl.host || (req.headers.origin && req.headers.origin !== publicUrl.origin)) throw new HttpError(403, 'Foreign Host or Origin rejected');
+      // Railway probes use their own Host; exempt only the read-only liveness route.
+      const railwayHealth = req.method === 'GET' && req.url === '/health' && req.headers.host === 'healthcheck.railway.app' && !req.headers.origin;
+      if ((!railwayHealth && req.headers.host !== publicUrl.host) || (req.headers.origin && req.headers.origin !== publicUrl.origin)) throw new HttpError(403, 'Foreign Host or Origin rejected');
       const now = Date.now();
       for (const [key, session] of sessions) if (session.expires <= now) sessions.delete(key);
       for (const [key, rate] of rates) if (now - rate.time > 60_000) rates.delete(key);
