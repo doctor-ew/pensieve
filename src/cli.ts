@@ -16,6 +16,8 @@ import { ShareStore, mailerFromEnv } from './executive.js';
 import { createShareServer } from './share-server.js';
 import {teamCommands,runTeamCommand} from './team-cli.js';
 import {runTeamService} from './team-service.js';
+import {migrateHosted} from './migrate-hosted.js';
+import {postgresPool,migratePostgres} from './postgres.js';
 
 const help = `Pensieve — Doctor Ew's Laboratory
 
@@ -44,6 +46,7 @@ const help = `Pensieve — Doctor Ew's Laboratory
   pensieve workspace [--port 7331]     Shared bundle server; separate store required
 
 Team platform:
+  pensieve migrate-hosted --home FROZEN_BACKUP_DIR  Import SQLite copies into PENSIEVE_DATABASE_URL
   pensieve team-server --home PATH [--port 7334]
   pensieve team-invite NAME            Create a personal invitation (operator only)
   pensieve connect URL                Save personal connection from PENSIEVE_TEAM_TOKEN
@@ -85,6 +88,12 @@ async function main() {
   const need = (s: string | undefined, label: string): string => { if (!s) throw new Error(`${label} is required. See --help.`); return s; };
   const source = () => { if (arg !== 'codex' && arg !== 'claude') throw new Error('Source must be codex or claude'); return arg; };
   const out = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
+  if (command === 'migrate-hosted') {
+    const backup=need(values.home,'--home frozen backup directory');
+    const pg=postgresPool(need(process.env.PENSIEVE_DATABASE_URL,'PENSIEVE_DATABASE_URL'));
+    try { await migratePostgres(pg); out(await migrateHosted({teamPath:join(backup,'team.sqlite'),sharePath:join(backup,'team-shares.sqlite'),connectorPath:join(backup,'connector.sqlite'),pool:pg})); } finally { await pg.end(); }
+    return;
+  }
   if (command === 'unpack') { out(await unpack(need(arg, 'Bundle file'), values.project)); return; }
   if (command === 'pools') { out(settings().pools); return; }
   if (command === 'register') { out(registerPool(need(arg, 'Pool name'), need(values.home, '--home'), values.project)); return; }

@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant U as Creator
+  participant A as Pensieve
+  participant D as PostgreSQL
+  participant W as Email worker
+  participant S as SES
+  U->>A: Create selected snapshot
+  A->>D: Transaction: validate membership + snapshot + share mapping
+  U->>A: Explicitly send invitations
+  A->>D: Transaction: authorize + quota + unique outbox jobs
+  W->>D: Claim bounded jobs with row locks
+  W->>D: Recheck revocation and current authorization
+  W->>S: Fixed invitation to stored recipient
+  S-->>W: Accepted or ambiguous failure
+  W->>D: sent / unknown receipt
+  Note over W,S: No exactly-once promise; never silently resend ambiguous attempts

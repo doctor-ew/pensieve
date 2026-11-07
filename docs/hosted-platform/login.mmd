@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant U as Creator
+  participant A as Pensieve
+  participant C as Cognito
+  participant D as PostgreSQL
+  U->>A: Sign in
+  A->>D: Persist hashed state, PKCE verifier, nonce, short expiry
+  A-->>U: Redirect to hosted login
+  U->>C: Verify email / authenticate
+  C-->>A: Callback code + state
+  A->>D: Atomically consume browser-bound login state
+  A->>C: Exchange code with PKCE
+  A->>A: Validate JWT signature, issuer, audience, nonce, expiry, token_use, email_verified
+  A->>D: Map issuer+subject, create durable hashed session
+  A-->>U: HttpOnly SameSite cookie; no identity tokens in URL/storage

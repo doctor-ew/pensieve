@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import type {ShareRepository} from './repositories.js';
 import type {VerificationGuard} from './verification-guard.js';
 import { makeMemory } from './sessions.js';
-import { answerQuestion, emailAddress, ShareStore, type Mailer } from './executive.js';
+import { answerQuestion, emailAddress, type Mailer } from './executive.js';
 
 async function json(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = []; let size = 0;
@@ -13,7 +14,7 @@ async function json(req: IncomingMessage): Promise<Record<string, unknown>> {
   return value;
 }
 const digest = (value: string) => createHash('sha256').update(value).digest();
-export function createShareServer(store: ShareStore, options: { ownerToken: string; publicUrl: string; mailer: Mailer; emailReady?: boolean; verification?:VerificationGuard }) {
+export function createShareServer(store: ShareRepository, options: { ownerToken: string; publicUrl: string; mailer: Mailer; emailReady?: boolean; verification?:VerificationGuard }) {
   if (options.ownerToken.length < 32) throw new Error('Owner token must contain at least 32 characters');
   const publicUrl = new URL(options.publicUrl);
   if (publicUrl.protocol !== 'https:' && !(publicUrl.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(publicUrl.hostname))) throw new Error('Public sharing requires HTTPS');
@@ -46,27 +47,27 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
       const bearer = (req.headers.authorization ?? '').replace(/^Bearer /, '');
       if (path.startsWith('/api/shares')) {
         if (!timingSafeEqual(digest(bearer), digest(options.ownerToken))) { reply(401, { error: 'Owner authentication required' }); return; }
-        if (req.method === 'GET' && path === '/api/shares') { reply(200, { shares: store.list().map(s => ({ ...s, url: new URL(`/s/${s.id}`, publicUrl).href })) }); return; }
+        if (req.method === 'GET' && path === '/api/shares') { reply(200, { shares: (await store.list()).map(s => ({ ...s, url: new URL(`/s/${s.id}`, publicUrl).href })) }); return; }
         if (req.method === 'POST' && path === '/api/shares') {
           const input = await json(req);
           if (input.accessMode !== 'invitation-link' && options.emailReady === false) throw new Error('Email-code sign-in is not configured. Use private invitation links instead.');
-          const snapshot = store.create(input);
+          const snapshot = (await store.create(input));
           const url = new URL(`/s/${snapshot.id}`, publicUrl).href;
-          const invitations = snapshot.accessMode === 'invitation-link' ? snapshot.recipients.map(email => {
-            const link = `${url}#${store.invitation(snapshot.id, email)}`;
+          const invitations = snapshot.accessMode === 'invitation-link' ? await Promise.all(snapshot.recipients.map(async email => {
+            const link = `${url}#${(await store.invitation(snapshot.id, email))}`;
             const message = `You have been invited to read ${snapshot.title}.\n\nOpen your private invitation:\n${link}\n\nThis link expires ${new Date(snapshot.expiresAt).toISOString().slice(0, 10)}. It grants access to the shared brief and memories. Please do not forward it.\n\nDoctor Ew's Laboratory`;
             return { email, url: link, mailto: `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(snapshot.title)}&body=${encodeURIComponent(message)}` };
-          }) : [];
+          })) : [];
           reply(201, { id: snapshot.id, url, expiresAt: snapshot.expiresAt, invitations }); return;
         }
         const content = path.match(/^\/api\/shares\/([a-f0-9]{32})\/content$/);
-        if (content && req.method === 'GET') { reply(200, store.get(content[1])); return; }
+        if (content && req.method === 'GET') { reply(200, (await store.get(content[1]))); return; }
         if (content && req.method === 'POST') {
-          const snapshot = store.updateContent(content[1], await json(req));
+          const snapshot = (await store.updateContent(content[1], await json(req)));
           reply(200, { id: snapshot.id, title: snapshot.title, count: snapshot.bundle.memories.length, expiresAt: snapshot.expiresAt }); return;
         }
         const revoke = path.match(/^\/api\/shares\/([a-f0-9]{32})\/revoke$/);
-        if (req.method === 'POST' && revoke) { store.revoke(revoke[1]); reply(200, { revoked: true }); return; }
+        if (req.method === 'POST' && revoke) { (await store.revoke(revoke[1])); reply(200, { revoked: true }); return; }
       }
       const route = path.match(/^\/api\/reader\/([a-f0-9]{32})(?:\/(code|verify|ask|download))?$/);
       if (!route) { reply(404, { error: 'Not found' }); return; }
@@ -75,18 +76,18 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
         if (options.emailReady === false) throw new Error('Open the complete private invitation link from your email. This service does not use email sign-in codes.');
         const body = await json(req); const email=emailAddress(body.email);
         await options.verification?.verifyHuman(body.turnstileToken);
-        options.verification?.check('code',address,id+':'+email);
+        await options.verification?.check('code',address,id+':'+email);
         try { await store.challenge(id,email,options.mailer); } catch { console.warn('Pensieve verification email unavailable'); }
         reply(200, { message: 'If this email is invited, a sign-in code is on its way. Check your inbox.' }); return;
       }
       if (req.method === 'POST' && action === 'verify') {
         const body = await json(req);
-        options.verification?.check('verify',address,id+':'+emailAddress(body.email));
+        await options.verification?.check('verify',address,id+':'+emailAddress(body.email));
         if (typeof body.code !== 'string' || !/^\d{8}$/.test(body.code)) throw new Error('Enter the eight-digit code from your email');
-        reply(200, { token: store.verify(id, emailAddress(body.email), body.code) }); return;
+        reply(200, { token: (await store.verify(id, emailAddress(body.email), body.code)) }); return;
       }
       let snapshot;
-      try { snapshot = store.authorize(id, bearer); } catch { reply(401, { error: 'Sign in again, or ask the sender whether this share is still available.' }); return; }
+      try { snapshot = (await store.authorize(id, bearer)); } catch { reply(401, { error: 'Sign in again, or ask the sender whether this share is still available.' }); return; }
       if (req.method === 'GET' && action === 'download') {
         res.setHeader('Content-Disposition', 'attachment; filename="pensieve-memories.pensieve.json"');
         const memories = [...snapshot.bundle.memories];
@@ -107,7 +108,7 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
         activeAnswers++;
         try {
           const answer = await answerQuestion(snapshot, body.question);
-          store.authorize(id, bearer); // Recheck expiry/revocation after an external model call.
+          (await store.authorize(id, bearer)); // Recheck expiry/revocation after an external model call.
           reply(200, answer);
         } finally { activeAnswers--; }
         return;

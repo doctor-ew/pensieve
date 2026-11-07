@@ -16,3 +16,6 @@ jobs:
       - run: terraform -chdir=infra/terraform test
       - run: terraform -chdir=infra/state-backend init -backend=false -input=false
       - run: terraform -chdir=infra/state-backend validate
+      - run: terraform -chdir=infra/hosted init -backend=false -input=false
+      - run: terraform -chdir=infra/hosted validate
+      - run: terraform -chdir=infra/hosted test

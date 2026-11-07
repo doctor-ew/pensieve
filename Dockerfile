@@ -13,5 +13,6 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY package.json ./
 COPY web ./web
+COPY migrations ./migrations
 EXPOSE 8080
 CMD ["node", "dist/cli.js", "sharing-server", "--home", "/data", "--host", "0.0.0.0"]
