@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { importProject } from './project.js';
+import { unpack } from './unpack.js';
 import { Store } from './store.js';
 import { providerFromEnv } from './embeddings.js';
 import { discover, discoverProject, makeMemory, readSession } from './sessions.js';
@@ -18,6 +19,7 @@ const help = `Pensieve — Doctor Ew's Laboratory
 
   pensieve [open] [POOL]              Open your memory pool in the browser
   pensieve share [POOL]               Open the executive sharing dialog
+  pensieve unpack FILE [--project PATH]  Install memories for an agent in this repo
   pensieve pack [POOL]                Save the whole pool as one portable file
   pensieve pools                      List your named pools
   pensieve register NAME --home PATH [--project PATH]
@@ -61,6 +63,7 @@ async function main() {
   const need = (s: string | undefined, label: string): string => { if (!s) throw new Error(`${label} is required. See --help.`); return s; };
   const source = () => { if (arg !== 'codex' && arg !== 'claude') throw new Error('Source must be codex or claude'); return arg; };
   const out = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
+  if (command === 'unpack') { out(await unpack(need(arg, 'Bundle file'), values.project)); return; }
   if (command === 'pools') { out(settings().pools); return; }
   if (command === 'register') { out(registerPool(need(arg, 'Pool name'), need(values.home, '--home'), values.project)); return; }
   if (command === 'import-project') {

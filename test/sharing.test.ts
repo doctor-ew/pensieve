@@ -82,6 +82,13 @@ test('reader HTTP flow hides all content until verification and supports revoke'
     await post(`/api/reader/${id}/code`, { email: 'executive@example.com' }); assert.match(code, /^\d{8}$/);
     const verified = await post(`/api/reader/${id}/verify`, { email: 'executive@example.com', code }); const { token } = await verified.json();
     const view = await fetch(base + `/api/reader/${id}`, { headers: { Authorization: 'Bearer ' + token } }); const snapshot = await view.json();
+    assert.equal((await fetch(base + `/api/reader/${id}/download`)).status, 401);
+    const download = await fetch(base + `/api/reader/${id}/download`, { headers: { Authorization: 'Bearer ' + token } });
+    assert.match(download.headers.get('content-disposition')!, /attachment/);
+    const downloaded = await download.json();
+    assert.deepEqual(downloaded.memories.slice(1), fixture().bundle.memories);
+    assert.equal(downloaded.memories[0].text, fixture().brief);
+    assert.equal(downloaded.recipients, undefined);
     assert.equal(snapshot.title, fixture().title); assert.equal(snapshot.recipients, undefined);
     assert.equal((await post('/api/shares', fixture(), token)).status, 401);
     assert.equal((await post(`/api/shares/${id}/content`, fixture(), token)).status, 401);
@@ -91,6 +98,7 @@ test('reader HTTP flow hides all content until verification and supports revoke'
     const answer = await post(`/api/reader/${id}/ask`, { question: 'Which database?' }, token); assert.equal((await answer.json()).sources.length, 1);
     await post(`/api/shares/${id}/revoke`, {}, ownerToken);
     assert.equal((await fetch(base + `/api/reader/${id}`, { headers: { Authorization: 'Bearer ' + token } })).status, 401);
+    assert.equal((await fetch(base + `/api/reader/${id}/download`, { headers: { Authorization: 'Bearer ' + token } })).status, 401);
     const cross = await fetch(base + '/api/shares', { headers: { Authorization: 'Bearer ' + ownerToken, Origin: 'https://evil.example' } }); assert.equal(cross.status, 403);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); }
 });

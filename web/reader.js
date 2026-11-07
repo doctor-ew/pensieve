@@ -51,3 +51,17 @@ $('ask-form').onsubmit = async event => {
 };
 $('signout').onclick = () => { sessionStorage.removeItem(key); location.reload(); };
 if (token) load().catch(error => { $('reader-status').textContent = error.message; });
+
+$('download-agent').onclick = async () => {
+  const button = $('download-agent'); button.disabled = true;
+  try {
+    // Fetch again so expiry/revocation is enforced at download time.
+    const bundle = await api('download');
+    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2) + '\n'], { type: 'application/json' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'pensieve-memories.pensieve.json';
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    $('reader-status').textContent = 'Downloaded. In your repository, run pensieve unpack with the downloaded file, then ask your agent to read .pensieve/START-HERE.md.';
+  } catch (error) { $('reader-status').textContent = error.message; }
+  finally { button.disabled = false; }
+};

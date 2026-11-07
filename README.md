@@ -137,3 +137,17 @@ recall with the selected provider. [Tests](test/core.test.ts), [live smoke](test
 See the [project test walkthrough](docs/PROJECT-TEST.md) for an isolated real-session
 test, and [architecture and limitations](docs/ARCHITECTURE.md). Contributions should
 keep capture private and sharing explicit. Licensed under [MIT](LICENSE).
+
+## Take shared memories into Codex or Claude
+
+On a shared page, click **Download for an agent**. With Pensieve installed,
+run `pensieve unpack /path/to/pensieve-memories.pensieve.json` from the destination
+repository. Then tell your agent: "Read .pensieve/START-HERE.md and use the imported
+memories for this task." [Unpack implementation](src/unpack.ts).
+
+Unpack creates a local SQLite pool, searchable source records in
+`.pensieve/context.jsonl`, and a short agent guide. It needs no embedding service
+and leaves existing AGENTS.md and CLAUDE.md untouched. Optional semantic search
+still uses `pensieve index --home .pensieve`. Download authorization checks the
+share's access and expiry; already downloaded copies are not revoked remotely.
+[Download route](src/share-server.ts), [reader](web/reader.js).

@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { makeMemory } from './sessions.js';
 import { answerQuestion, emailAddress, ShareStore, type Mailer } from './executive.js';
 
 async function json(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -63,7 +64,7 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
         const revoke = path.match(/^\/api\/shares\/([a-f0-9]{32})\/revoke$/);
         if (req.method === 'POST' && revoke) { store.revoke(revoke[1]); reply(200, { revoked: true }); return; }
       }
-      const route = path.match(/^\/api\/reader\/([a-f0-9]{32})(?:\/(code|verify|ask))?$/);
+      const route = path.match(/^\/api\/reader\/([a-f0-9]{32})(?:\/(code|verify|ask|download))?$/);
       if (!route) { reply(404, { error: 'Not found' }); return; }
       const [, id, action] = route;
       if (req.method === 'POST' && action === 'code') {
@@ -78,6 +79,15 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
       }
       let snapshot;
       try { snapshot = store.authorize(id, bearer); } catch { reply(401, { error: 'Sign in again, or ask the sender whether this share is still available.' }); return; }
+      if (req.method === 'GET' && action === 'download') {
+        res.setHeader('Content-Disposition', 'attachment; filename="pensieve-memories.pensieve.json"');
+        const memories = [...snapshot.bundle.memories];
+        if (!memories.some(memory => memory.text === snapshot.brief)) memories.unshift(makeMemory({
+          text: snapshot.brief, source: 'manual', role: 'user', session: `share:${snapshot.id}`,
+          timestamp: new Date(snapshot.createdAt).toISOString(), locator: 'pensieve:reviewed-project-brief', project: '',
+        }));
+        reply(200, { format: 'pensieve/v1', createdAt: new Date().toISOString(), memories }); return;
+      }
       if (req.method === 'GET' && !action) {
         // Recipient addresses and owner credentials never enter the reader payload.
         reply(200, { title: snapshot.title, brief: snapshot.brief, createdAt: snapshot.createdAt, expiresAt: snapshot.expiresAt, memories: snapshot.bundle.memories, cloudAllowed: snapshot.cloudAllowed }); return;
