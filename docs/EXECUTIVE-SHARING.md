@@ -4,8 +4,10 @@
 
 Open your pool and click **Share with someone**. Choose the whole pool or your
 selected memories, edit the executive brief, enter invited email addresses, and
-choose an expiry. Click **Create private link**, then **Copy link**. Send that link
-using your normal communication channel. Pensieve does not send invitation emails.
+choose an expiry. Click **Create private link**, then **Email invitation** beside
+the recipient. Your normal email app opens a ready-to-send draft. Press Send there.
+You can also copy the private link into an email yourself. No external email
+provider is required for this path; Pensieve does not claim the draft has been sent.
 [Owner UI](../web/app.js), [share creation](../src/server.ts).
 
 The starting brief is a set of source excerpts, explicitly labeled in the dialog.
@@ -20,8 +22,10 @@ recipient. [Access controls](../src/executive.ts), [reader server](../src/share-
 
 ## Recipient
 
-Open the link, enter an invited email address, and enter the emailed eight-digit
-code. Read the brief, expand supporting memories, or ask a question. No install,
+Open the complete private invitation link. Read the brief, expand supporting
+memories, or ask a question. Anyone holding the invitation link can access the
+snapshot until expiry or revocation; do not forward it. Email ownership is not
+independently verified in invitation-link mode. No install,
 terminal, account creation, or embedding setup is required.
 [Reader](../web/reader.html), [sign-in flow](../web/reader.js).
 
@@ -54,8 +58,8 @@ health-check configuration. Configure:
 | --- | --- |
 | `PENSIEVE_OWNER_TOKEN` | Random secret of at least 32 characters; only the sender gets this. |
 | `PENSIEVE_PUBLIC_URL` | The service’s HTTPS origin. |
-| `RESEND_API_KEY` | Email delivery credential. |
-| `PENSIEVE_EMAIL_FROM` | An approved sender on your verified email domain. |
+| `RESEND_API_KEY` | Optional credential for the alternate email-code sign-in mode. |
+| `PENSIEVE_EMAIL_FROM` | Optional approved sender for email-code sign-in. |
 | `PORT` | Listening port supplied by the host. |
 | `OPENAI_API_KEY` | Optional credential for consented generated answers. |
 | `PENSIEVE_ANSWER_MODEL` | Optional explicitly chosen OpenAI chat model. |
@@ -66,10 +70,13 @@ recipient pages. Recipients never need this setup. Environment variables
 `PENSIEVE_SHARE_URL` and `PENSIEVE_SHARE_TOKEN` can override local settings.
 [Settings](../src/pools.ts), [client](../src/share-client.ts).
 
-Email delivery uses [Resend’s send API](https://resend.com/docs/api-reference/emails/send-email).
+The alternate email-code mode uses [Resend’s send API](https://resend.com/docs/api-reference/emails/send-email).
 The sign-in code is hashed at rest, expires after ten minutes, is single-use, and
-allows five verification attempts. Access tokens expire after twelve hours or
-the share expiry, whichever comes first. Both content and question requests
+allows five verification attempts. Email-code access tokens expire after twelve hours or
+the share expiry, whichever comes first. Private invitation tokens instead last
+until the share expires or is revoked, allowing the recipient to revisit the
+email on another device. Tokens are hashed at rest and carried in the invitation
+URL fragment rather than its path or query. Both content and question requests
 recheck revocation. [Implementation](../src/executive.ts).
 
 This is a single-owner service. It does not provide multiple publisher accounts,

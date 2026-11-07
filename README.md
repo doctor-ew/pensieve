@@ -13,8 +13,10 @@ currently scans the selected model’s vectors in memory. See [the store](src/st
 ## Share without the terminal ceremony
 
 In the UI, click **Share with someone**, review the brief and selected memories,
-enter recipient emails, then **Create private link → Copy link**. Recipients open
-the link and verify their email. **Manage shares** lets you revoke access.
+enter recipient emails, then **Create private link → Email invitation**. This
+opens a prepared draft in your email app; send it from your usual account.
+Recipients open the private invitation link directly. Anyone holding the link
+can access the snapshot until expiry or revocation. **Manage shares** lets you revoke access.
 **Download pool** saves the whole pool as one portable file.
 [Executive sharing guide](docs/EXECUTIVE-SHARING.md).
 
@@ -25,8 +27,8 @@ Code and `$pensieve` for Codex. After building, `bash scripts/install-local.sh`
 installs the local launcher and both agent shortcuts, preserving conflicting
 existing files. [CLI](src/cli.ts), [installer](scripts/install-local.sh).
 
-Invited browser links require a deployed sharing service and configured email
-delivery. The sender connects it once in **Sharing settings**; recipients install
+Private invitation links require a deployed sharing service, but no external
+email provider. The sender connects it once in **Sharing settings**; recipients install
 nothing. The current brief starts from editable excerpts. Generated answers are
 optional and require both share-level consent and operator model configuration.
 [Setup and boundaries](docs/EXECUTIVE-SHARING.md).

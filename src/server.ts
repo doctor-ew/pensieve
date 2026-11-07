@@ -80,7 +80,7 @@ export function createApp(store: Store, provider: EmbeddingProvider, options: { 
           reply(200, { count: bundle.memories.length, title: options.poolName ?? 'Memory pool', brief: draftBrief(bundle.memories) }); break;
         }
         case '/api/share': {
-          const request = validateShare({ title: input.title, brief: input.brief, recipients: input.recipients, days: input.days, cloudAllowed: input.cloudAllowed, bundle: selectedBundle() });
+          const request = validateShare({ title: input.title, brief: input.brief, recipients: input.recipients, days: input.days, cloudAllowed: input.cloudAllowed, accessMode: input.accessMode, bundle: selectedBundle() });
           reply(201, await shareRequest('', request)); break;
         }
         case '/api/revoke': {

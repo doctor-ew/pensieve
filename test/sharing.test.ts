@@ -123,3 +123,36 @@ test('generated answers send only selected evidence and reject invented citation
     if (oldModel === undefined) delete process.env.PENSIEVE_ANSWER_MODEL; else process.env.PENSIEVE_ANSWER_MODEL = oldModel;
   }
 });
+
+test('private invitation links require explicit mode, remain scoped, and expire or revoke', () => {
+  let now = 1_000_000; const store = new ShareStore(':memory:', () => now);
+  try {
+    const verifiedOnly = store.create(fixture());
+    assert.throws(() => store.invitation(verifiedOnly.id, 'executive@example.com'), /does not allow/);
+    const share = store.create({ ...fixture(), accessMode: 'invitation-link' });
+    assert.throws(() => store.invitation(share.id, 'stranger@example.com'), /does not allow/);
+    const token = store.invitation(share.id, 'executive@example.com');
+    assert.equal(store.authorize(share.id, token).id, share.id);
+    assert.throws(() => store.authorize(verifiedOnly.id, token), /sign in/);
+    now += 8 * 86_400_000; assert.throws(() => store.authorize(share.id, token), /sign in/);
+    now = 1_000_000; store.revoke(share.id); assert.throws(() => store.authorize(share.id, token), /unavailable/);
+  } finally { store.close(); }
+});
+
+test('email-app invitations work without an email provider and never expose a key in the URL path', async () => {
+  const store = new ShareStore(':memory:'); const ownerToken = 'o'.repeat(40);
+  const server = createShareServer(store, { ownerToken, publicUrl: 'http://127.0.0.1', emailReady: false, mailer: { sendCode: async () => { throw new Error('Should not send email'); } } });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address(); assert.ok(address && typeof address !== 'string'); const base = `http://127.0.0.1:${address.port}`;
+  const publish = (input: unknown) => fetch(base + '/api/shares', { method: 'POST', headers: { Authorization: 'Bearer ' + ownerToken }, body: JSON.stringify(input) });
+  try {
+    assert.equal((await publish(fixture())).status, 400);
+    const response = await publish({ ...fixture(), accessMode: 'invitation-link' }); assert.equal(response.status, 201);
+    const shared = await response.json(); const invitation = shared.invitations[0]; const url = new URL(invitation.url);
+    assert.match(url.hash, /^#[a-f0-9]{64}$/); assert.equal(url.search, ''); assert.equal(invitation.email, 'executive@example.com');
+    assert.ok(decodeURIComponent(invitation.mailto).includes(invitation.url));
+    const view = await fetch(base + `/api/reader/${shared.id}`, { headers: { Authorization: 'Bearer ' + url.hash.slice(1) } });
+    assert.equal(view.status, 200); assert.equal((await view.json()).memories.length, 1);
+    assert.equal((await fetch(base + `/api/reader/${shared.id}`)).status, 401);
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); }
+});
