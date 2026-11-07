@@ -190,3 +190,18 @@ test('capture obeys off, private and shared-target policies; reader cannot issue
     assert.equal(f.shares.list().length, 0);
   } finally { await f.close(); }
 });
+
+
+test('Railway probe host is allowed only for GET health without a browser origin', async () => {
+  const f = await fixture();
+  try {
+    const probe = (path: string, method='GET', origin?: string) => new Promise<number | undefined>((resolve, reject) => {
+      const req = httpRequest(f.base + path, {method, headers:{Host:'healthcheck.railway.app', ...(origin?{Origin:origin}:{})}}, res=>{res.resume();resolve(res.statusCode);});req.on('error',reject);req.end();
+    });
+    assert.equal(await probe('/health'),200);
+    assert.equal(await probe('/api/team/pools'),403);
+    assert.equal(await probe('/'),403);
+    assert.equal(await probe('/health','POST'),403);
+    assert.equal(await probe('/health','GET','https://evil.example'),403);
+  } finally {await f.close();}
+});
