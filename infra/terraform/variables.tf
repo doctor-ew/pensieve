@@ -29,8 +29,9 @@ variable "allowed_identity_provider_ids" {
 variable "aws_region" { type = string }
 variable "sending_domain" {
   type        = string
-  description = "Dedicated email subdomain in the configured Cloudflare zone; do not reuse existing mail DNS without importing it."
+  description = "Dedicated email subdomain in the configured Route 53 zone; do not reuse existing mail DNS without importing it."
 }
+variable "email_route53_zone_id" { type = string }
 variable "sender_email" { type = string }
 variable "sender_iam_user_name" {
   type    = string

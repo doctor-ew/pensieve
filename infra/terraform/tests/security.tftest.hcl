@@ -8,6 +8,7 @@ mock_provider "aws" {
   }
 }
 variables {
+  email_route53_zone_id         = "ZFIXTURE"
   cloudflare_account_id         = "fixture-account"
   cloudflare_zone_id            = "fixture-zone"
   creator_hostname              = "pensieve.example.com"

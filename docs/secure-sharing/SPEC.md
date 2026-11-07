@@ -42,3 +42,5 @@ Ship code disabled by absent Access and SES settings. Activate only after extern
 - Existing Railway resources are not adopted by this module. Custom-domain registration and secret injection remain explicit deployment steps. No IAM keys in Terraform state; Cloudflare-generated secrets do enter state and require restricted backend access.
 
 Works cited: src/access.ts (accessVerifier); src/team-store.ts (accessUser); src/team-server.ts (access-session and session binding); test/secure-sharing.test.ts; test/team-browser.test.ts; infra/terraform/README.md; https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/ ; https://docs.aws.amazon.com/ses/latest/APIReference-V2/API_GetAccount.html .
+
+Deployment discovery correction: doctorew.com DNS is in Route53, so SES DNS resources use aws_route53_record with email_route53_zone_id; Cloudflare zone configuration applies only to creator routing. Existing apex DNS and mail are not migrated. Creator hostname and Cloudflare Access onboarding must be resolved before DNS cutover.

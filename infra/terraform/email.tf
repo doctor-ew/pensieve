@@ -9,41 +9,39 @@ resource "aws_sesv2_email_identity" "sender" {
     }
   }
 }
-resource "cloudflare_dns_record" "dkim" {
+resource "aws_route53_record" "dkim" {
   count   = 3
-  zone_id = var.cloudflare_zone_id
+  zone_id = var.email_route53_zone_id
   name    = "${aws_sesv2_email_identity.sender.dkim_signing_attributes[0].tokens[count.index]}._domainkey.${var.sending_domain}"
-  content = "${aws_sesv2_email_identity.sender.dkim_signing_attributes[0].tokens[count.index]}.dkim.amazonses.com"
   type    = "CNAME"
   ttl     = 300
-  proxied = false
+  records = ["${aws_sesv2_email_identity.sender.dkim_signing_attributes[0].tokens[count.index]}.dkim.amazonses.com"]
 }
 resource "aws_sesv2_email_identity_mail_from_attributes" "sender" {
   email_identity         = aws_sesv2_email_identity.sender.email_identity
   mail_from_domain       = "bounce.${var.sending_domain}"
   behavior_on_mx_failure = "REJECT_MESSAGE"
 }
-resource "cloudflare_dns_record" "mail_from_mx" {
-  zone_id  = var.cloudflare_zone_id
-  name     = "bounce.${var.sending_domain}"
-  type     = "MX"
-  priority = 10
-  content  = "feedback-smtp.${var.aws_region}.amazonses.com"
-  ttl      = 300
+resource "aws_route53_record" "mail_from_mx" {
+  zone_id = var.email_route53_zone_id
+  name    = "bounce.${var.sending_domain}"
+  type    = "MX"
+  ttl     = 300
+  records = ["10 feedback-smtp.${var.aws_region}.amazonses.com"]
 }
-resource "cloudflare_dns_record" "mail_from_spf" {
-  zone_id = var.cloudflare_zone_id
+resource "aws_route53_record" "mail_from_spf" {
+  zone_id = var.email_route53_zone_id
   name    = "bounce.${var.sending_domain}"
   type    = "TXT"
-  content = "v=spf1 include:amazonses.com -all"
   ttl     = 300
+  records = ["v=spf1 include:amazonses.com -all"]
 }
-resource "cloudflare_dns_record" "dmarc" {
-  zone_id = var.cloudflare_zone_id
+resource "aws_route53_record" "dmarc" {
+  zone_id = var.email_route53_zone_id
   name    = "_dmarc.${var.sending_domain}"
   type    = "TXT"
-  content = "v=DMARC1; p=reject; adkim=s; aspf=r"
   ttl     = 300
+  records = ["v=DMARC1; p=reject; adkim=s; aspf=r"]
 }
 resource "aws_iam_user" "sender" {
   name = var.sender_iam_user_name
