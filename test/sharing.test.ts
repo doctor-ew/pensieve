@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ShareStore, answerQuestion, type ShareInput } from '../src/executive.js';
+import { ShareStore, answerQuestion, draftBrief, type ShareInput } from '../src/executive.js';
 import { createShareServer } from '../src/share-server.js';
 import { makeMemory } from '../src/sessions.js';
 import { registerPool, resolvePool } from '../src/pools.js';
@@ -84,6 +84,10 @@ test('reader HTTP flow hides all content until verification and supports revoke'
     const view = await fetch(base + `/api/reader/${id}`, { headers: { Authorization: 'Bearer ' + token } }); const snapshot = await view.json();
     assert.equal(snapshot.title, fixture().title); assert.equal(snapshot.recipients, undefined);
     assert.equal((await post('/api/shares', fixture(), token)).status, 401);
+    assert.equal((await post(`/api/shares/${id}/content`, fixture(), token)).status, 401);
+    assert.equal((await post(`/api/shares/${id}/content`, { ...fixture(), brief: 'Corrected overview' }, ownerToken)).status, 200);
+    const revised = await fetch(base + `/api/reader/${id}`, { headers: { Authorization: 'Bearer ' + token } });
+    assert.equal((await revised.json()).brief, 'Corrected overview');
     const answer = await post(`/api/reader/${id}/ask`, { question: 'Which database?' }, token); assert.equal((await answer.json()).sources.length, 1);
     await post(`/api/shares/${id}/revoke`, {}, ownerToken);
     assert.equal((await fetch(base + `/api/reader/${id}`, { headers: { Authorization: 'Bearer ' + token } })).status, 401);
@@ -155,4 +159,29 @@ test('email-app invitations work without an email provider and never expose a ke
     assert.equal(view.status, 200); assert.equal((await view.json()).memories.length, 1);
     assert.equal((await fetch(base + `/api/reader/${shared.id}`)).status, 401);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); }
+});
+
+test('content correction preserves invitation access and expiry, archives previous content', () => {
+  const store = new ShareStore(':memory:');
+  try {
+    const original = store.create({ ...fixture(), accessMode: 'invitation-link' });
+    const token = store.invitation(original.id, original.recipients[0]);
+    store.updateContent(original.id, { ...fixture(), title: 'Correct project', brief: 'Grounded overview', recipients: ['intruder@example.com'], days: 30 });
+    const corrected = store.authorize(original.id, token);
+    assert.equal(corrected.title, 'Correct project');
+    assert.equal(corrected.expiresAt, original.expiresAt);
+    assert.deepEqual(corrected.recipients, original.recipients);
+    assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM revisions').get()!.n, 1);
+    assert.throws(() => store.updateContent(original.id, { brief: '' }));
+    store.revoke(original.id);
+    assert.throws(() => store.updateContent(original.id, fixture()), /unavailable/);
+  } finally { store.close(); }
+});
+
+test('executive drafts use an explicit reviewed brief rather than recent roleplay', () => {
+  const sample = fixture().bundle.memories[0];
+  assert.match(draftBrief([sample]), /Review required/);
+  assert.ok(!draftBrief([sample]).includes(sample.text));
+  const brief = makeMemory({ ...sample, text: 'Grounded project overview', locator: 'pensieve:reviewed-project-brief' });
+  assert.equal(draftBrief([sample, brief]), brief.text);
 });

@@ -46,3 +46,19 @@ to locate matching session paths, then run
 Substitute `claude` for a Claude Code session. Run `pensieve index --home /Users/doctorew/.pensieve/evaluations/hack-her-thon`
 after new messages arrive. Watching captures text; embedding remains a separate,
 explicit operation. [CLI](../src/cli.ts), [discovery](../src/sessions.ts).
+
+## Import the actual project
+
+The smoke-test pool above is only a sample, not the project memory pool. To import
+tracked Markdown materials and **all** sessions with matching project metadata:
+
+```sh
+pensieve import-project --project /path/to/project --home /path/to/new-private-pool
+pensieve index --home /path/to/new-private-pool
+```
+
+Use a new directory to preserve an old sample. Import reports document/session
+counts, revision, and parse warnings. Repository passages retain file locations;
+session passages retain transcript locations. Generated AGENTS/environment
+messages are skipped before chunking. Review the scope and prepare a grounded
+executive brief before sharing; synthetic exercises remain historical examples.

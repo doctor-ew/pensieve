@@ -10,8 +10,9 @@ You can also copy the private link into an email yourself. No external email
 provider is required for this path; Pensieve does not claim the draft has been sent.
 [Owner UI](../web/app.js), [share creation](../src/server.ts).
 
-The starting brief is a set of source excerpts, explicitly labeled in the dialog.
-Review and edit it before sharing. This version does not generate a synthesized
+The starting brief uses an explicitly saved reviewed project brief, when present.
+Otherwise, write a brief before sharing; recent conversation fragments are never
+presented as a project summary. Review and edit the brief before sharing. This version does not generate a synthesized
 executive summary automatically. The underlying snapshot includes all selected
 memory text and source metadata, not just the brief. [Draft](../src/executive.ts).
 
@@ -83,3 +84,11 @@ This is a single-owner service. It does not provide multiple publisher accounts,
 automatic secret redaction, at-rest encryption, or an invitation email campaign.
 The service stores only deliberately published snapshots. Never mount a private
 memory pool as the hosted share directory. [Reader server](../src/share-server.ts).
+
+## Correct an existing share
+
+The authenticated owner can GET `/api/shares/:id/content` to inspect a snapshot
+and POST `{title, brief, bundle}` to the same endpoint to correct it. Existing
+invitation links, recipients, cloud consent, and expiry stay unchanged. The prior
+content is archived in the service database. Revoked or expired shares cannot be
+updated. Ordinary captures never update a published share automatically.

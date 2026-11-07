@@ -2,6 +2,7 @@
 import { parseArgs } from 'node:util';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { importProject } from './project.js';
 import { Store } from './store.js';
 import { providerFromEnv } from './embeddings.js';
 import { discover, discoverProject, makeMemory, readSession } from './sessions.js';
@@ -24,6 +25,7 @@ const help = `Pensieve — Doctor Ew's Laboratory
 
   pensieve capture "memory" [--session ID] [--project NAME]
   pensieve discover codex|claude [--root PATH] [--project PATH]
+  pensieve import-project --project PATH --home PATH  Import tracked Markdown and all matching sessions
   pensieve import codex|claude PATH
   pensieve watch codex|claude PATH     Reimport an active session every 2 seconds
   pensieve index                      Embed pending memories (local Ollama default)
@@ -61,6 +63,11 @@ async function main() {
   const out = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
   if (command === 'pools') { out(settings().pools); return; }
   if (command === 'register') { out(registerPool(need(arg, 'Pool name'), need(values.home, '--home'), values.project)); return; }
+  if (command === 'import-project') {
+    const store = new Store(join(need(values.home, '--home'), 'memory.sqlite'));
+    try { out(await importProject(store, need(values.project, '--project'))); } finally { store.close(); }
+    return;
+  }
   if (command === 'sharing-server') {
     const ownerToken = need(process.env.PENSIEVE_OWNER_TOKEN, 'PENSIEVE_OWNER_TOKEN');
     const port = Number(values.port ?? process.env.PORT ?? 7333);

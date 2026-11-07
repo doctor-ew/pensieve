@@ -44,6 +44,9 @@ export async function readSession(path: string, source: 'codex' | 'claude'): Pro
     if (role !== 'user' && role !== 'assistant') continue;
     const text = textContent(content).trim();
     if (!text) continue;
+    // Filter complete injected context before chunking; otherwise its later chunks
+    // look like project conversation and can dominate retrieval.
+    if (role === 'user' && /^(?:# AGENTS\.md instructions for |<environment_context>|<permissions instructions>|<skills_instructions>)/.test(text)) continue;
     for (let offset = 0; offset < text.length; offset += 2400) {
       memories.push(makeMemory({ text: text.slice(offset, offset + 2400), source, session, role,
         timestamp: typeof row.timestamp === 'string' ? row.timestamp : '',

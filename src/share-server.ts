@@ -54,6 +54,12 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
           }) : [];
           reply(201, { id: snapshot.id, url, expiresAt: snapshot.expiresAt, invitations }); return;
         }
+        const content = path.match(/^\/api\/shares\/([a-f0-9]{32})\/content$/);
+        if (content && req.method === 'GET') { reply(200, store.get(content[1])); return; }
+        if (content && req.method === 'POST') {
+          const snapshot = store.updateContent(content[1], await json(req));
+          reply(200, { id: snapshot.id, title: snapshot.title, count: snapshot.bundle.memories.length, expiresAt: snapshot.expiresAt }); return;
+        }
         const revoke = path.match(/^\/api\/shares\/([a-f0-9]{32})\/revoke$/);
         if (req.method === 'POST' && revoke) { store.revoke(revoke[1]); reply(200, { revoked: true }); return; }
       }

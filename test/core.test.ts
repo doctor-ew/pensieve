@@ -117,3 +117,12 @@ test('hosted exchange requires token and cannot invoke private capture/import/se
     await assert.rejects(exchange('http://example.com', token), /HTTPS/);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); }
 });
+
+test('injected environment and AGENTS messages are filtered before chunking', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'pensieve-context-'));
+  const file = join(dir, 'session.jsonl');
+  const messages = ['# AGENTS.md instructions for /project\n' + 'injected '.repeat(1000), '<environment_context>cwd</environment_context>', 'Use reachable students for the workshop.'];
+  await writeFile(file, messages.map(text => JSON.stringify({ type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } })).join('\n'));
+  const parsed = await readSession(file, 'codex');
+  assert.deepEqual(parsed.memories.map(m => m.text), [messages[2]]);
+});

@@ -19,6 +19,7 @@ export function validateShare(value: unknown): ShareInput {
     typeof input.brief !== 'string' || !input.brief.trim() || input.brief.length > 12_000 ||
     !Array.isArray(input.recipients) || !input.recipients.length || input.recipients.length > 25 ||
     !Number.isInteger(input.days) || input.days < 1 || input.days > 30 || typeof input.cloudAllowed !== 'boolean') throw new Error('A title, brief, recipients, and expiry of 1–30 days are required');
+  if (input.brief.startsWith('Review required:')) throw new Error('Write and review the executive brief before sharing');
   const bundle = validateBundle(input.bundle);
   if (!bundle.memories.length) throw new Error('Select at least one memory');
   if (input.accessMode !== undefined && !['email-code', 'invitation-link'].includes(input.accessMode)) throw new Error('Invalid access mode');
@@ -53,6 +54,20 @@ export class ShareStore {
       const s = JSON.parse(row.body) as Snapshot;
       return { id: s.id, title: s.title, recipients: s.recipients, expiresAt: s.expiresAt, revoked: !!row.revoked, count: s.bundle.memories.length };
     });
+  }
+  updateContent(id: string, value: unknown): Snapshot {
+    const previous = this.get(id);
+    const content = value as { title?: unknown; brief?: unknown; bundle?: unknown };
+    const input = validateShare({ ...previous, title: content?.title, brief: content?.brief, bundle: content?.bundle });
+    const snapshot = { ...previous, title: input.title, brief: input.brief, bundle: input.bundle };
+    this.db.exec('CREATE TABLE IF NOT EXISTS revisions (share TEXT NOT NULL, saved INTEGER NOT NULL, body TEXT NOT NULL)');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('INSERT INTO revisions VALUES (?,?,?)').run(id, this.now(), JSON.stringify(previous));
+      this.db.prepare('UPDATE shares SET body=? WHERE id=?').run(JSON.stringify(snapshot), id);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    return snapshot;
   }
   revoke(id: string) { this.db.prepare('UPDATE shares SET revoked=1 WHERE id=?').run(id); }
   invitation(id: string, email: string): string {
@@ -106,7 +121,9 @@ export function mailerFromEnv(): Mailer {
   } };
 }
 export function draftBrief(memories: Memory[]): string {
-  return memories.slice(0, 5).map((m, i) => `${i + 1}. ${m.text.slice(0, 350)}${m.text.length > 350 ? '…' : ''}\nSource: ${m.id.slice(0, 12)}`).join('\n\n');
+  const brief = memories.find(m => m.source === 'manual' && m.locator === 'pensieve:reviewed-project-brief');
+  if (brief) return brief.text;
+  return 'Review required: write a project overview, key decisions, current status, and next steps before sharing. The selected memories are supporting evidence; recent conversation excerpts are not an executive brief.';
 }
 export async function answerQuestion(snapshot: Snapshot, question: string) {
   if (!question.trim() || question.length > 2000) throw new Error('Enter a question of up to 2,000 characters');

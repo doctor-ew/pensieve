@@ -29,7 +29,7 @@ existing files. [CLI](src/cli.ts), [installer](scripts/install-local.sh).
 
 Private invitation links require a deployed sharing service, but no external
 email provider. The sender connects it once in **Sharing settings**; recipients install
-nothing. The current brief starts from editable excerpts. Generated answers are
+nothing. The brief uses a saved reviewed project overview when available; otherwise you must write one before sharing. Generated answers are
 optional and require both share-level consent and operator model configuration.
 [Setup and boundaries](docs/EXECUTIVE-SHARING.md).
 
