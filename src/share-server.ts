@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import type {VerificationGuard} from './verification-guard.js';
 import { makeMemory } from './sessions.js';
 import { answerQuestion, emailAddress, ShareStore, type Mailer } from './executive.js';
 
@@ -12,7 +13,7 @@ async function json(req: IncomingMessage): Promise<Record<string, unknown>> {
   return value;
 }
 const digest = (value: string) => createHash('sha256').update(value).digest();
-export function createShareServer(store: ShareStore, options: { ownerToken: string; publicUrl: string; mailer: Mailer; emailReady?: boolean }) {
+export function createShareServer(store: ShareStore, options: { ownerToken: string; publicUrl: string; mailer: Mailer; emailReady?: boolean; verification?:VerificationGuard }) {
   if (options.ownerToken.length < 32) throw new Error('Owner token must contain at least 32 characters');
   const publicUrl = new URL(options.publicUrl);
   if (publicUrl.protocol !== 'https:' && !(publicUrl.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(publicUrl.hostname))) throw new Error('Public sharing requires HTTPS');
@@ -21,12 +22,15 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
   const server = createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     const reply = (status: number, data: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
     try {
       const path = new URL(req.url ?? '/', options.publicUrl).pathname;
       if (req.method === 'GET' && path === '/health') { reply(200, { status: 'ok' }); return; }
       if (req.method === 'GET' && path === '/favicon.ico') { res.writeHead(204); res.end(); return; }
+      if(req.method==='GET'&&path==='/reader-security.js'){
+        res.writeHead(200,{'Content-Type':'text/javascript'});res.end('window.pensieveSecurity='+JSON.stringify({siteKey:options.verification?.siteKey??null})+';');return;
+      }
       const asset = path === '/' ? 'welcome.html' : /^\/s\/[a-f0-9]{32}$/.test(path) ? 'reader.html' : path === '/reader.js' ? 'reader.js' : path === '/style.css' ? 'style.css' : undefined;
       if (req.method === 'GET' && asset) {
         res.writeHead(200, { 'Content-Type': asset.endsWith('.js') ? 'text/javascript' : asset.endsWith('.css') ? 'text/css' : 'text/html' });
@@ -69,11 +73,15 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
       const [, id, action] = route;
       if (req.method === 'POST' && action === 'code') {
         if (options.emailReady === false) throw new Error('Open the complete private invitation link from your email. This service does not use email sign-in codes.');
-        const body = await json(req); await store.challenge(id, emailAddress(body.email), options.mailer);
+        const body = await json(req); const email=emailAddress(body.email);
+        await options.verification?.verifyHuman(body.turnstileToken);
+        options.verification?.check('code',address,id+':'+email);
+        try { await store.challenge(id,email,options.mailer); } catch { console.warn('Pensieve verification email unavailable'); }
         reply(200, { message: 'If this email is invited, a sign-in code is on its way. Check your inbox.' }); return;
       }
       if (req.method === 'POST' && action === 'verify') {
         const body = await json(req);
+        options.verification?.check('verify',address,id+':'+emailAddress(body.email));
         if (typeof body.code !== 'string' || !/^\d{8}$/.test(body.code)) throw new Error('Enter the eight-digit code from your email');
         reply(200, { token: store.verify(id, emailAddress(body.email), body.code) }); return;
       }

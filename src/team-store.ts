@@ -35,6 +35,7 @@ export class TeamStore {
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS team_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS team_users(id TEXT PRIMARY KEY,name TEXT NOT NULL,token TEXT UNIQUE NOT NULL,active INTEGER NOT NULL DEFAULT 1);
+      CREATE TABLE IF NOT EXISTS team_access_identities(issuer TEXT NOT NULL,subject TEXT NOT NULL,actor TEXT NOT NULL REFERENCES team_users(id),PRIMARY KEY(issuer,subject));
       CREATE TABLE IF NOT EXISTS team_pools(id TEXT PRIMARY KEY,name TEXT NOT NULL,visibility TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS team_members(pool TEXT NOT NULL REFERENCES team_pools(id),actor TEXT NOT NULL REFERENCES team_users(id),role TEXT NOT NULL,PRIMARY KEY(pool,actor));
       CREATE TABLE IF NOT EXISTS team_memories(pool TEXT NOT NULL REFERENCES team_pools(id),id TEXT NOT NULL,body TEXT NOT NULL,contributor TEXT NOT NULL REFERENCES team_users(id),created TEXT NOT NULL,PRIMARY KEY(pool,id));
@@ -55,6 +56,17 @@ export class TeamStore {
     bounded(name,'user name',160); const user = { id: randomUUID(), name: name.trim() }; const token = randomBytes(32).toString('base64url');
     this.db.prepare('INSERT INTO team_users(id,name,token) VALUES (?,?,?)').run(user.id,user.name,digest(token));
     return { user, token };
+  }
+  accessUser(issuer:string,subject:string,email:string):TeamUser {
+    bounded(issuer,'identity issuer',512); bounded(subject,'identity subject',512); bounded(email,'email',160);
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new TeamAccessError(401,'Verified email required');
+    return this.transaction(()=>{
+      const prior=this.db.prepare('SELECT actor FROM team_access_identities WHERE issuer=? AND subject=?').get(issuer,subject);
+      if(prior)return this.getUser(prior.actor as string);
+      const {user}=this.createUser(email);
+      this.db.prepare('INSERT INTO team_access_identities VALUES (?,?,?)').run(issuer,subject,user.id);
+      return user;
+    });
   }
   getUser(id: string): TeamUser {
     const user = this.db.prepare('SELECT id,name FROM team_users WHERE id=? AND active=1').get(id) as unknown as TeamUser | undefined;

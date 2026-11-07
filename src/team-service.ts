@@ -1,3 +1,6 @@
+import {accessFromEnv} from './access.js';
+import {sesMailerFromEnv} from './ses-mailer.js';
+import {verificationGuard} from './verification-guard.js';
 import {join} from 'node:path';
 import {homedir} from 'node:os';
 import {createHash} from 'node:crypto';
@@ -46,7 +49,7 @@ export async function runTeamService(command:string,arg:string|undefined,options
   const backend=process.env.PENSIEVE_AZURE_ENDPOINT?new AzureVectorBackend({endpoint:process.env.PENSIEVE_AZURE_ENDPOINT,index:need(process.env.PENSIEVE_AZURE_INDEX,'PENSIEVE_AZURE_INDEX'),key:need(process.env.PENSIEVE_AZURE_KEY,'PENSIEVE_AZURE_KEY'),model:provider.identity,dimensions:Number(need(process.env.PENSIEVE_AZURE_DIMENSIONS,'PENSIEVE_AZURE_DIMENSIONS'))}):undefined;
   const store=new TeamStore(join(home,'team.sqlite'),backend);const shares=new ShareStore(join(home,'team-shares.sqlite'));
   const connector=createConnectorApp(store,{publicUrl,statePath:join(home,'connector.sqlite'),provider});
-  const server=createTeamServer(store,{ownerToken:need(process.env.PENSIEVE_OWNER_TOKEN,'PENSIEVE_OWNER_TOKEN'),publicUrl,provider,shareStore:shares,handleExtra:async(req,res)=>{
+  const server=createTeamServer(store,{ownerToken:need(process.env.PENSIEVE_OWNER_TOKEN,'PENSIEVE_OWNER_TOKEN'),publicUrl,provider,shareStore:shares,readerUrl:process.env.PENSIEVE_READER_URL,access:accessFromEnv(),openSignup:process.env.PENSIEVE_OPEN_SIGNUP==='true',mailer:sesMailerFromEnv(),verification:verificationGuard(shares.db,{siteKey:process.env.PENSIEVE_TURNSTILE_SITE_KEY,secret:process.env.PENSIEVE_TURNSTILE_SECRET,hostname:new URL(process.env.PENSIEVE_READER_URL??publicUrl).hostname}),handleExtra:async(req,res)=>{
     if(!isConnectorPath(new URL(req.url??'/',publicUrl).pathname))return false;
     connector.app(req,res);return true;
   }});
