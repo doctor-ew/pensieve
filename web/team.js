@@ -4,7 +4,7 @@ let emailReady = false; let pool; let memories = []; let imported; let pending =
 const status = text => { $('status').textContent = text; };
 async function api(path, data) {
   const response = await fetch('/api/team' + path, { method: data === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
-  const value = await response.json(); if (!response.ok) throw new Error(value.error || 'Request failed'); return value;
+  const value = await response.json(); if (!response.ok) { const error = new Error(value.error || 'Request failed'); error.status = response.status; throw error; } return value;
 }
 async function run(action) { if (pending) return; pending = true; document.querySelectorAll('button').forEach(button => { button.disabled = true; }); status('Saving or loading…'); try { await action(); status('Ready'); } catch (error) { status('Failed: ' + error.message); } finally { pending = false; document.querySelectorAll('button').forEach(button => { button.disabled = false; }); updateSelection(); } }
 const route = suffix => '/pools/' + encodeURIComponent(pool.id) + suffix;
@@ -34,8 +34,9 @@ $('close-capture').onclick = () => { $('capture-panel').hidden = true; $('add-me
 $('open-share').onclick = () => { $('capture-panel').hidden = true; $('share-panel').hidden = false; $('share-title').focus(); };
 $('close-share').onclick = () => { $('share-panel').hidden = true; $('open-share').focus(); };
 
+$('access-login').onclick = () => run(async () => { await api('/access-session', {}); sessionStorage.removeItem('pensieve-signed-out'); await signedIn(); });
 $('login').onsubmit = event => { event.preventDefault(); run(async () => { await api('/session', { token: $('token').value.trim() }); $('token').value = ''; await signedIn(); }); };
-$('logout').onclick = () => run(async () => { await api('/logout', {}); location.reload(); });
+$('logout').onclick = () => run(async () => { await api('/logout', {}); sessionStorage.setItem('pensieve-signed-out','true'); location.reload(); });
 $('pools').onchange = () => run(choose);
 $('create-pool').onsubmit = event => { event.preventDefault(); run(async () => { const created = await api('/pools', { name: $('pool-name').value, visibility: $('visibility').value }); $('pool-name').value = ''; await choose(created.pool.id); $('new-pool').open = false; }); };
 $('upload').onchange = () => run(async () => { const file = $('upload').files[0]; if (!file) return; if (file.size > 9_000_000) throw new Error('File exceeds 9 MB'); const text = await file.text(); imported = undefined; if (file.name.endsWith('.json')) { const bundle = JSON.parse(text); if (bundle.format !== 'pensieve/v1' || !Array.isArray(bundle.memories)) throw new Error('Choose a Pensieve v1 bundle or a text file'); imported = bundle; $('memory-text').value = bundle.memories.map(m => m.text).join('\n\n'); $('upload-info').textContent = bundle.memories.length + ' records loaded. Saving unchanged text preserves record IDs and provenance. Editing the preview saves one new reviewed memory.'; } else { $('memory-text').value = text; $('kind').value = 'raw'; $('upload-info').textContent = 'Text loaded for review. Source excerpts are not automatically distilled.'; } });
@@ -48,4 +49,15 @@ $('show-all').onclick = () => renderMemories(memories);
 $('download').onclick = () => run(async () => { const bundle = await api(route('/export'), { ids: selected() }); const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = 'pensieve-memories.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); });
 $('share').onsubmit = event => { event.preventDefault(); run(async () => { const result = await api(route('/shares'), { accessMode:$('access-mode').value, ids: selected(), title: $('share-title').value, brief: $('brief').value, recipients: $('recipients').value.split(',').map(s => s.trim()).filter(Boolean), days: Number($('days').value) }); $('invitations').replaceChildren(); if(emailReady) addSendButton($('invitations'),result.id); for (const invite of result.invitations) { const row = line($('invitations'), 'p', invite.email + ': '); const email = line(row, 'a', 'Open email draft'); email.href = invite.mailto; const copy = line(row, 'button', 'Copy private invitation'); copy.onclick = () => run(async () => { await navigator.clipboard.writeText(invite.url); }); const link = line(row, 'a', ' Preview recipient view'); link.href = invite.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; } await refresh(); }); };
 $('grant').onsubmit = event => { event.preventDefault(); run(async () => { await api(route('/members'), { userId: $('member-id').value.trim(), role: $('member-role').value }); await refresh(); }); };
-(async () => { const fragment = location.hash.slice(1); history.replaceState(null, '', location.pathname + location.search); try { if (fragment) { const token = fragment.startsWith('token=') ? new URLSearchParams(fragment).get('token') : fragment; await api('/session', { token }); } await signedIn(); status('Ready'); } catch { status('Open your personal invitation to begin.'); } })();
+(async () => {
+ const fragment=location.hash.slice(1);history.replaceState(null,'',location.pathname+location.search);
+ try {
+  const options=await api('/signin-options');$('access-login').hidden=!options.openSignup;
+  if(fragment){const token=fragment.startsWith('token=')?new URLSearchParams(fragment).get('token'):fragment;await api('/session',{token});sessionStorage.removeItem('pensieve-signed-out');}
+  try{await api('/me');}catch(error){
+   if(error.status!==401||!options.openSignup||sessionStorage.getItem('pensieve-signed-out'))throw error;
+   await api('/access-session',{});
+  }
+  await signedIn();status('Ready');
+ }catch{status('Sign in to open your memories.');}
+})();

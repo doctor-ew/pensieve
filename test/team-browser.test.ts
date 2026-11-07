@@ -31,6 +31,7 @@ test('isolated browser creates, saves, curates, shares and downloads synthetic m
     await page.goto(base + '/#token=' + creator.token);
     await expect(page.locator('#workspace')).toBeVisible(); await expect(page.locator('#status')).toHaveText('Ready');
     assert.equal(new URL(page.url()).hash, '');
+    await page.locator('#visibility').selectOption('shared');
     await page.locator('#pool-name').fill('Synthetic roadmap'); await page.locator('#create-pool button').click();
     await expect(page.locator('#pool-tools')).toBeVisible(); await expect(page.locator('#status')).toHaveText('Ready');
     const included = 'Synthetic decision: use a shared memory pool. <script>window.compromised=true</script>';
@@ -87,7 +88,8 @@ test('isolated browser creates, saves, curates, shares and downloads synthetic m
     await expect(page.locator('#memories')).toContainText('Synthetic private override capture');
     const pools = store.listPools(creator.user.id); const shared = pools.find(pool => pool.visibility === 'shared')!; const privatePool = pools.find(pool => pool.visibility === 'private')!;
     assert.equal(store.listMemories(creator.user.id, shared.id).length, 2); assert.equal(store.listMemories(creator.user.id, privatePool.id).length, 1);
-    await page.locator('#new-pool summary').click(); await page.locator('#pool-name').fill('Synthetic newly chosen private'); await page.locator('#visibility').selectOption('private'); await page.locator('#create-pool button').click();
+    await page.locator('#new-pool summary').click(); await page.locator('#visibility').selectOption('shared');
+    await page.locator('#pool-name').fill('Synthetic newly chosen private'); await page.locator('#visibility').selectOption('private'); await page.locator('#create-pool button').click();
     await expect(page.locator('#destination')).toContainText('Synthetic newly chosen private (private)'); await expect(page.locator('#memories article')).toHaveCount(0);
     await page.locator('#add-memory').click(); await page.locator('#memory-text').fill('Synthetic next save belongs in new pool'); await page.locator('#capture button').click(); await expect(page.locator('#memory-text')).toHaveValue('');
     const newlyChosen = store.listPools(creator.user.id).find(pool => pool.name === 'Synthetic newly chosen private')!;
@@ -100,4 +102,25 @@ test('isolated browser creates, saves, curates, shares and downloads synthetic m
     await page.locator('#logout').click(); await expect(page.locator('#signin')).toBeVisible();
     assert.deepEqual(errors, []); await recipient.close();
   } finally { await browser.close(); await new Promise<void>(resolve => server.close(() => resolve())); store.close(); shares.close(); }
+});
+
+test('Access signup preserves logout and does not switch invited accounts on pool failures',async()=>{
+ const probe=netServer();await new Promise<void>(r=>probe.listen(0,'127.0.0.1',r));const addr=probe.address();assert.ok(addr&&typeof addr!=='string');await new Promise<void>(r=>probe.close(()=>r()));
+ const base='http://127.0.0.1:'+addr.port;const store=new TeamStore(':memory:');const invited=store.createUser('Invited account');
+ const server=createTeamServer(store,{publicUrl:base,ownerToken:'x'.repeat(32),openSignup:true,access:async()=>({issuer:'https://fixture.cloudflareaccess.com',subject:'alice',email:'alice@example.com'})});
+ await new Promise<void>(r=>server.listen(addr.port,'127.0.0.1',r));
+ const chrome='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+ const browser=await chromium.launch({headless:true,executablePath:process.env.PENSIEVE_TEST_BROWSER??(existsSync(chrome)?chrome:undefined)});
+ try{
+  const context=await browser.newContext({extraHTTPHeaders:{'Cf-Access-Jwt-Assertion':'fixture'}});const page=await context.newPage();
+  await page.goto(base);await expect(page.locator('#status')).toHaveText('Ready');
+  await expect(page.locator('#visibility')).toHaveValue('private');
+  await page.locator('#logout').click();await expect(page.locator('#signin')).toBeVisible();
+  await page.reload();await expect(page.locator('#signin')).toBeVisible();await expect(page.locator('#workspace')).toBeHidden();
+  await page.locator('#access-login').click();await expect(page.locator('#status')).toHaveText('Ready');
+  await page.goto(base+'/?invited=1#token='+invited.token);await expect(page.locator('#identity')).toContainText('Invited account');
+  await page.route('**/api/team/pools',route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"temporary"}'}));
+  await page.reload();await expect(page.locator('#status')).toHaveText('Sign in to open your memories.');
+  const me=await page.evaluate(async()=>{const res=await fetch('/api/team/me');return res.json();});assert.equal(me.user.id,invited.user.id);
+ }finally{await browser.close();await new Promise<void>(r=>server.close(()=>r()));store.close();}
 });

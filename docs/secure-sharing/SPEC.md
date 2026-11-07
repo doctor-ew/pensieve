@@ -31,3 +31,14 @@ Ship code disabled by absent Access and SES settings. Activate only after extern
 - https://docs.aws.amazon.com/ses/latest/dg/control-user-access.html
 - https://docs.aws.amazon.com/ses/latest/dg/send-email-authentication-dmarc.html
 - Existing files above plus test/team-server.test.ts, test/team-browser.test.ts, test/executive.test.ts.
+
+## Open signup and infrastructure acceptance — 2026-11-07
+
+- With PENSIEVE_OPEN_SIGNUP=true and verified Access enabled, same-origin POST /api/team/access-session accepts only a signed human subject with email. Service identities cannot register. Misconfigured signup without Access fails startup.
+- Persist identities by exact issuer+subject in team_access_identities; atomically create user+mapping. Never merge an existing invitation account by matching email. Revocation survives repeat signup. Existing invitation accounts remain usable.
+- Bind Access-created browser sessions to the current issuer+subject; cross-account and service-token reuse returns 401. Limit sessions to five per user. Logout persists across reload until the user explicitly continues; unrelated pool-fetch errors cannot trigger account replacement.
+- Default new UI pools to private. Membership authorization remains required for all pools regardless of visibility.
+- Terraform pins provider versions and codifies Access login-method policy, service credential, optional DNS cutover, Turnstile, dedicated SES identity/DKIM/mail-from/DMARC, narrowly scoped sender IAM permissions, and separate encrypted/versioned/public-blocked S3 state bootstrap. Mock tests must pass without credentials. CI validates only; never auto-applies.
+- Existing Railway resources are not adopted by this module. Custom-domain registration and secret injection remain explicit deployment steps. No IAM keys in Terraform state; Cloudflare-generated secrets do enter state and require restricted backend access.
+
+Works cited: src/access.ts (accessVerifier); src/team-store.ts (accessUser); src/team-server.ts (access-session and session binding); test/secure-sharing.test.ts; test/team-browser.test.ts; infra/terraform/README.md; https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/ ; https://docs.aws.amazon.com/ses/latest/APIReference-V2/API_GetAccount.html .

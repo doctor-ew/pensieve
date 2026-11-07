@@ -1,0 +1,12 @@
+cloudflare_account_id = "REPLACE"
+cloudflare_zone_id = "REPLACE"
+cloudflare_team_domain = "REPLACE.cloudflareaccess.com"
+# Select the existing One-time PIN identity provider, not an unverified-email IdP.
+allowed_identity_provider_ids = ["REPLACE_WITH_OTP_ID"]
+creator_hostname = "pensieve.doctorew.com"
+railway_cname_target = "REPLACE_WITH_RAILWAY_CUSTOM_DOMAIN_TARGET"
+reader_hostname = "pensieve-team-production.up.railway.app"
+aws_region = "us-east-1"
+sending_domain = "mail.doctorew.com"
+sender_email = "share@mail.doctorew.com"
+create_creator_dns = false

@@ -126,3 +126,45 @@ test('provider and quota failures do not disclose invitation membership',async()
  }finally{await f.close();}
  }
 });
+
+test('verified signup isolates identities, persists mappings and respects revocation',async()=>{
+ const store=new TeamStore(':memory:');
+ try {
+  const alice=store.accessUser('https://fixture.cloudflareaccess.com','alice','alice@example.com');
+  const again=store.accessUser('https://fixture.cloudflareaccess.com','alice','changed@example.com');
+  assert.equal(again.id,alice.id);
+  const other=store.accessUser('https://fixture.cloudflareaccess.com','other','alice@example.com');
+  assert.notEqual(other.id,alice.id);
+  const pool=store.createPool(alice.id,'Private','private');
+  assert.deepEqual(store.listPools(other.id),[]);
+  assert.throws(()=>store.getPool(other.id,pool.id));
+  store.revokeUser(alice.id);
+  assert.throws(()=>store.accessUser('https://fixture.cloudflareaccess.com','alice','alice@example.com'));
+  assert.throws(()=>store.accessUser('issuer','','a@example.com'));
+  assert.throws(()=>createTeamServer(store,{publicUrl:'http://localhost',ownerToken:'x'.repeat(32),openSignup:true}));
+ } finally {store.close();}
+});
+
+test('signup requires verified human JWT, same origin and creates a usable session',async()=>{
+ const store=new TeamStore(':memory:');
+ let identity:{issuer:string;subject:string;email?:string}={issuer:'https://fixture.cloudflareaccess.com',subject:'alice',email:'alice@example.com'};
+ const probe=createServer();await new Promise<void>(r=>probe.listen(0,'127.0.0.1',r));const addr=probe.address();assert.ok(addr&&typeof addr!=='string');await new Promise<void>(r=>probe.close(()=>r()));
+ const base='http://127.0.0.1:'+addr.port;
+ const server=createTeamServer(store,{publicUrl:base,ownerToken:'x'.repeat(32),openSignup:true,access:async token=>{if(token!=='verified')throw Error('invalid');return identity;}});
+ await new Promise<void>(r=>server.listen(addr.port,'127.0.0.1',r));
+ const sign=(origin=base,token='verified')=>fetch(base+'/api/team/access-session',{method:'POST',headers:{Origin:origin,'Cf-Access-Jwt-Assertion':token,'Content-Type':'application/json'},body:'{}'});
+ try {
+  assert.equal((await sign('https://evil.example')).status,403);
+  assert.equal((await sign(base,'forged')).status,401);
+  const response=await sign();assert.equal(response.status,200);
+  const cookie=response.headers.get('set-cookie')!.split(';')[0];
+  const me=await fetch(base+'/api/team/me',{headers:{Cookie:cookie,'Cf-Access-Jwt-Assertion':'verified'}});assert.equal(me.status,200);
+  identity={issuer:identity.issuer,subject:'bob',email:'bob@example.com'};
+  assert.equal((await fetch(base+'/api/team/me',{headers:{Cookie:cookie,'Cf-Access-Jwt-Assertion':'verified'}})).status,401);
+  identity={issuer:identity.issuer,subject:'alice',email:'alice@example.com'};
+  for(let i=0;i<6;i++)assert.equal((await sign()).status,200);
+  assert.equal((await fetch(base+'/api/team/me',{headers:{Cookie:cookie,'Cf-Access-Jwt-Assertion':'verified'}})).status,401);
+  identity={issuer:identity.issuer,subject:''};assert.equal((await sign()).status,401);
+  identity={issuer:identity.issuer,subject:'human-no-email'};assert.equal((await sign()).status,401);
+ }finally{await new Promise<void>(r=>server.close(()=>r()));store.close();}
+});

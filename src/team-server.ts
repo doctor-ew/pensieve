@@ -5,7 +5,7 @@ import { TeamStore, TeamAccessError, type TeamUser } from './team-store.js';
 import { ShareStore } from './executive.js';
 import { createShareServer } from './share-server.js';
 import {DeliveryLedger,type SecureMailer} from './delivery.js';
-import {publicAccessPath,type AccessVerifier} from './access.js';
+import {publicAccessPath,type AccessIdentity,type AccessVerifier} from './access.js';
 import type {VerificationGuard} from './verification-guard.js';
 import { resolvePolicy } from './policy.js';
 import type { EmbeddingProvider, Memory, Bundle } from './types.js';
@@ -20,16 +20,17 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   return value;
 }
 export interface TeamServerOptions {
-  ownerToken: string; publicUrl: string; readerUrl?:string; access?:AccessVerifier; mailer?:SecureMailer; verification?:VerificationGuard; provider?: EmbeddingProvider; shareStore?: ShareStore;
+  ownerToken: string; publicUrl: string; readerUrl?:string; openSignup?:boolean; access?:AccessVerifier; mailer?:SecureMailer; verification?:VerificationGuard; provider?: EmbeddingProvider; shareStore?: ShareStore;
   handleExtra?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
 }
 export function createTeamServer(store: TeamStore, options: TeamServerOptions) {
+  if(options.openSignup&&!options.access)throw Error('Open signup requires Cloudflare Access verification');
   const publicUrl = new URL(options.publicUrl);
   const readerUrl=new URL(options.readerUrl??options.publicUrl);
   if(readerUrl.protocol!=='https:'&&!(readerUrl.protocol==='http:'&&['localhost','127.0.0.1'].includes(readerUrl.hostname)))throw Error('HTTPS reader URL required');
   if (options.ownerToken.length < 32) throw new Error('Operator token must contain at least 32 characters');
   if (publicUrl.protocol !== 'https:' && !(publicUrl.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(publicUrl.hostname))) throw new Error('HTTPS required');
-  const sessions = new Map<string, { userId: string; expires: number }>();
+  const sessions = new Map<string, { userId: string; expires: number; accessKey?:string }>();
   const rates = new Map<string, { time: number; count: number }>();
   const cookie = (value: string, age: number) => `pensieve_session=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${publicUrl.protocol === 'https:' ? '; Secure' : ''}`;
   const delivery=options.shareStore?new DeliveryLedger(options.shareStore.db):undefined;
@@ -50,10 +51,11 @@ export function createTeamServer(store: TeamStore, options: TeamServerOptions) {
       const address = req.socket.remoteAddress ?? 'unknown'; const rate = rates.get(address) ?? { time: now, count: 0 }; rate.count++; rates.set(address, rate);
       if (rate.count > 300 || rates.size > 10_000) throw new HttpError(429, 'Too many requests');
       const url = new URL(req.url ?? '/', publicUrl); const path = url.pathname;
+      let accessIdentity:AccessIdentity|void=undefined;
       if(options.access && !publicAccessPath(req,path)){
         const assertion=req.headers['cf-access-jwt-assertion'];
         if(typeof assertion!=='string'||assertion.length>16000)throw new HttpError(401,'Cloudflare Access sign-in required');
-        try{await options.access(assertion);}catch{throw new HttpError(401,'Cloudflare Access sign-in required');}
+        try{accessIdentity=await options.access(assertion);}catch{throw new HttpError(401,'Cloudflare Access sign-in required');}
       }
       if (options.handleExtra && await options.handleExtra(req, res)) return;
       if (reader && (/^\/s\/[a-f0-9]{32}$/.test(path) || /^\/api\/reader\/[a-f0-9]{32}(?:\/[a-z-]+)?$/.test(path) || ['/reader.js', '/style.css', '/reader-security.js'].includes(path))) { reader.emit('request', req, res); return; }
@@ -72,6 +74,18 @@ export function createTeamServer(store: TeamStore, options: TeamServerOptions) {
         if (!bearer || !timingSafeEqual(hash(bearer), hash(options.ownerToken))) throw new HttpError(401, 'Operator authentication required');
         const input = await body(req); reply(201, store.createUser(input.name as string)); return;
       }
+      if(path==='/api/team/signin-options'&&req.method==='GET'){reply(200,{openSignup:!!options.openSignup});return;}
+      if (path === '/api/team/access-session' && req.method === 'POST') {
+        if(req.headers.origin!==publicUrl.origin)throw new HttpError(403,'Same-origin sign-in required');
+        if(!options.openSignup||!accessIdentity?.subject||!accessIdentity.email)throw new HttpError(401,'Verified human identity required');
+        if(sessions.size>=10_000)throw new HttpError(429,'Session capacity reached');
+        const user=store.accessUser(accessIdentity.issuer,accessIdentity.subject,accessIdentity.email);
+        const accessKey=JSON.stringify([accessIdentity.issuer,accessIdentity.subject]);
+        const prior=[...sessions].filter(([,session])=>session.userId===user.id);
+        for(const [key] of prior.slice(0,Math.max(0,prior.length-4)))sessions.delete(key);
+        const token=randomBytes(32).toString('hex'); sessions.set(hash(token).toString('hex'),{userId:user.id,expires:now+43_200_000,accessKey});
+        res.setHeader('Set-Cookie',cookie(token,43_200));reply(200,{user});return;
+      }
       if (path === '/api/team/session' && req.method === 'POST') {
         if (req.headers.origin !== publicUrl.origin) throw new HttpError(403, 'Same-origin sign-in required');
         const input = await body(req); const user = store.authenticate(input.token as string);
@@ -84,6 +98,7 @@ export function createTeamServer(store: TeamStore, options: TeamServerOptions) {
       else {
         const session = sessionToken ? sessions.get(hash(sessionToken).toString('hex')) : undefined;
         if (!session) throw new HttpError(401, 'Sign in with your personal invitation');
+        if(session.accessKey&&(!accessIdentity?.subject||session.accessKey!==JSON.stringify([accessIdentity.issuer,accessIdentity.subject])))throw new HttpError(401,'Sign in with your current verified identity');
         user = store.getUser(session.userId);
         if (req.method !== 'GET' && req.headers.origin !== publicUrl.origin) throw new HttpError(403, 'Same-origin mutation required');
       }

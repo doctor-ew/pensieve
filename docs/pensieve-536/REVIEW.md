@@ -27,3 +27,7 @@ Creator sessions remain memory-only across restarts. Interrupted sends may remai
 
 ## Final independent code verdict
 APPROVE, no remaining blockers after batched status reads. Focused tests independently rerun: 7/7. Both reviewers distinguish code approval from production activation.
+
+## Follow-up review — open signup and infrastructure
+
+Independent code reviewer and security auditor APPROVE the follow-up after corrections. Regression coverage confirms signout persistence, deliberate signin, preservation of invited accounts during pool API errors, identity-bound Access sessions, and five-session per-user cap. Small duplicated session-issuance code is a nonblocking DRY improvement. Terraform state is secret-bearing and requires the restricted backend; code review does not establish deployed infrastructure protection.

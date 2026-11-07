@@ -29,3 +29,7 @@ Existing snapshots keep their original access mode. Existing published links rem
 
 ## Pending deployment values
 Creator hostname, allowed creator identities, Cloudflare team/audience, machine service policy, SES sender/region, DNS authentication, optional Turnstile site/secret. These are configuration, not invented credentials or silently provisioned resources.
+
+## Approved clarification — 2026-11-07
+
+Public creators can register with any verified email; no operator-maintained creator allowlist. New pools default to private, with explicit curated sharing. Use pensieve.doctorew.com and share@mail.doctorew.com. Codify infrastructure in Terraform; do not treat a validated plan/module as deployed infrastructure. AWS discovery confirmed the doctorew profile has SES production access in us-east-1 and an existing verified doctorew.com identity. Dedicated mail subdomain activation remains pending.

@@ -1,6 +1,7 @@
 import {createRemoteJWKSet,jwtVerify,type JWTVerifyGetKey} from 'jose';
 import type {IncomingMessage} from 'node:http';
-export type AccessVerifier=(token:string)=>Promise<void>;
+export interface AccessIdentity { issuer:string; subject:string; email?:string }
+export type AccessVerifier=(token:string)=>Promise<AccessIdentity|void>;
 export function accessVerifier(issuer:string,audience:string,key?:JWTVerifyGetKey):AccessVerifier{
  const url=new URL(issuer);
  if(url.protocol!=='https:'||!url.hostname.endsWith('.cloudflareaccess.com')||url.username||url.password||url.port||url.search||url.hash||url.pathname!=='/'||!audience.trim())throw Error('Invalid Cloudflare Access issuer or audience');
@@ -9,6 +10,7 @@ export function accessVerifier(issuer:string,audience:string,key?:JWTVerifyGetKe
  return async token=>{
   const {payload}=await jwtVerify(token,keys,{issuer:canonical,audience,algorithms:['RS256'],requiredClaims:['exp','sub'],clockTolerance:5});
   if(payload.type!=='app'||typeof payload.sub!=='string'||(!payload.sub&&!(typeof payload.common_name==='string'&&payload.common_name.trim())))throw Error('Missing Access application identity');
+  return {issuer:canonical,subject:payload.sub,email:payload.sub&&typeof payload.email==='string'?payload.email:undefined};
  };
 }
 export function accessFromEnv():AccessVerifier|undefined{
