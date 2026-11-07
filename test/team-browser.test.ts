@@ -35,17 +35,21 @@ test('isolated browser creates, saves, curates, shares and downloads synthetic m
     const included = 'Synthetic decision: use a shared memory pool. <script>window.compromised=true</script>';
     const excluded = 'Synthetic private audience B detail';
     for (const text of [included, excluded]) {
-      await page.locator('#memory-text').fill(text); await page.locator('#project').fill('/synthetic/browser-project');
+      await page.locator('#add-memory').click(); await page.locator('#memory-text').fill(text); await page.locator('#project').fill('/synthetic/browser-project');
       await page.locator('#synthetic').check(); await page.locator('#capture button').click();
       await expect(page.locator('#memory-text')).toHaveValue(''); await expect(page.locator('#status')).toHaveText('Ready');
     }
     await expect(page.locator('#memories article')).toHaveCount(2);
+    await expect(page.locator('#memory-count')).toHaveText('2 saved memories'); await expect(page.locator('#capture-panel')).toBeHidden(); await expect(page.locator('#share-panel')).toBeHidden(); await expect(page.locator('#download')).toBeDisabled();
+    await page.locator('#select-all').click(); await expect(page.locator('#selection-count')).toHaveText('2 selected'); await page.locator('#select-all').click();
+    await page.reload(); await expect(page.locator('#memory-count')).toHaveText('2 saved memories'); await expect(page.locator('#capture-panel')).toBeHidden();
+    const firstCard = await page.locator('#memories article').first().boundingBox(); assert.ok(firstCard && firstCard.y < 650, 'Saved memories must appear in the initial desktop viewport');
     assert.equal(await page.evaluate(() => (window as unknown as { compromised?: boolean }).compromised), undefined);
     await page.locator('#memories article').filter({ hasText: included }).locator('input').check();
     const downloadEvent = page.waitForEvent('download'); await page.locator('#download').click();
     const exported = await downloadText(await downloadEvent); assert.ok(exported.includes(included)); assert.ok(!exported.includes(excluded));
     await expect(page.locator('#status')).toHaveText('Ready');
-    await page.locator('#share-title').fill('Synthetic executive handoff'); await page.locator('#brief').fill('Reviewed synthetic reasoning for our next build.'); await page.locator('#recipients').fill('synthetic-developer@example.com');
+    await page.locator('#open-share').click(); await page.locator('#share-title').fill('Synthetic executive handoff'); await page.locator('#brief').fill('Reviewed synthetic reasoning for our next build.'); await page.locator('#recipients').fill('synthetic-developer@example.com');
     await page.locator('#share button').click(); await expect(page.locator('#invitations a').first()).toBeVisible();
     const invitation = await page.locator('#invitations a[target="_blank"]').getAttribute('href'); assert.ok(invitation);
     const recipient = await browser.newContext({ acceptDownloads: true }); const reader = await recipient.newPage(); await reader.goto(invitation);
@@ -56,16 +60,16 @@ test('isolated browser creates, saves, curates, shares and downloads synthetic m
     await page.locator('#shares button').click(); await expect(page.locator('#shares')).toContainText('Revoked');
     const deniedDownload = reader.waitForResponse(response => response.url().endsWith('/download'));
     await reader.locator('#download-agent').click(); assert.equal((await deniedDownload).status(), 401); await expect(reader.locator('#signin')).toBeVisible();
-    await page.locator('summary').filter({ hasText: 'Capture settings' }).click();
+    await page.locator('#add-memory').click(); await page.locator('summary').filter({ hasText: 'Capture settings' }).click();
     await page.locator('#policy-destination').selectOption('private'); await page.locator('#policy-form button').click(); await expect(page.locator('#status')).toHaveText('Ready');
-    await page.locator('#memory-text').fill('Synthetic private override capture'); await page.locator('#capture button').click();
+    await page.locator('#add-memory').click(); await page.locator('#memory-text').fill('Synthetic private override capture'); await page.locator('#capture button').click();
     await expect(page.locator('#destination')).toContainText('Private · Synthetic roadmap (private)');
     await expect(page.locator('#memories')).toContainText('Synthetic private override capture');
     const pools = store.listPools(creator.user.id); const shared = pools.find(pool => pool.visibility === 'shared')!; const privatePool = pools.find(pool => pool.visibility === 'private')!;
     assert.equal(store.listMemories(creator.user.id, shared.id).length, 2); assert.equal(store.listMemories(creator.user.id, privatePool.id).length, 1);
-    await page.locator('#pool-name').fill('Synthetic newly chosen private'); await page.locator('#visibility').selectOption('private'); await page.locator('#create-pool button').click();
+    await page.locator('#new-pool summary').click(); await page.locator('#pool-name').fill('Synthetic newly chosen private'); await page.locator('#visibility').selectOption('private'); await page.locator('#create-pool button').click();
     await expect(page.locator('#destination')).toContainText('Synthetic newly chosen private (private)'); await expect(page.locator('#memories article')).toHaveCount(0);
-    await page.locator('#memory-text').fill('Synthetic next save belongs in new pool'); await page.locator('#capture button').click(); await expect(page.locator('#memory-text')).toHaveValue('');
+    await page.locator('#add-memory').click(); await page.locator('#memory-text').fill('Synthetic next save belongs in new pool'); await page.locator('#capture button').click(); await expect(page.locator('#memory-text')).toHaveValue('');
     const newlyChosen = store.listPools(creator.user.id).find(pool => pool.name === 'Synthetic newly chosen private')!;
     assert.equal(store.listMemories(creator.user.id, newlyChosen.id).length, 1); assert.equal(store.listMemories(creator.user.id, shared.id).length, 2);
     const readOnly = store.createUser('Synthetic read-only teammate'); store.grantMember(creator.user.id, shared.id, readOnly.user.id, 'reader');
