@@ -9,5 +9,6 @@ User approved architecture and build, including Mermaid diagrams.
 - [x] UI pagination, service integration, migration
 - [x] Terraform and backup/restore proof
 - [x] Tests and independent reviews
-- [ ] Published PR and remote CI
+- [x] Published PR: https://github.com/doctor-ew/pensieve/pull/9
+- [ ] Remote CI (see PR checks for current status)
 Production cutover not performed. Existing secure-sharing PR remains separate.
