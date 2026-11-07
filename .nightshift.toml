@@ -1,0 +1,25 @@
+
+[workflow]
+profile = "standard"
+
+[ticket_source]
+provider = "spec"
+
+[providers]
+routing_file = "routing.json"
+
+[deployments.production]
+name = "production"
+url = "https://example.invalid"
+health_path = "/health"
+
+[repair_budgets]
+implement = 3
+review = 3
+drift = 3
+qa = 3
+
+[policy]
+require_production_confirmation = true
+require_removal_confirmation = true
+allow_heuristic_production_target = false

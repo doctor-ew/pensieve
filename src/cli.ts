@@ -14,6 +14,8 @@ import { execFile } from 'node:child_process';
 import { resolvePool, registerPool, settings } from './pools.js';
 import { ShareStore, mailerFromEnv } from './executive.js';
 import { createShareServer } from './share-server.js';
+import {teamCommands,runTeamCommand} from './team-cli.js';
+import {runTeamService} from './team-service.js';
 
 const help = `Pensieve — Doctor Ew's Laboratory
 
@@ -41,6 +43,23 @@ const help = `Pensieve — Doctor Ew's Laboratory
   pensieve serve [--port 7331]         Local browser UI
   pensieve workspace [--port 7331]     Shared bundle server; separate store required
 
+Team platform:
+  pensieve team-server --home PATH [--port 7334]
+  pensieve team-invite NAME            Create a personal invitation (operator only)
+  pensieve connect URL                Save personal connection from PENSIEVE_TEAM_TOKEN
+  pensieve team-pools                  List authorized team pools
+  pensieve team-create NAME shared|private
+  pensieve save "decision" --pool ID [--citation SOURCE] [--ticket REF]
+  pensieve recall "query" --pool ID
+  pensieve sync --pool ID [--config pensieve.toml]
+  pensieve team-index --pool ID
+  pensieve team-import FILE --pool ID [--config FILE]
+  pensieve team-export FILE --pool ID --ids ID,ID
+  pensieve watch-session codex|claude FILE --project PATH --config FILE
+  pensieve mcp                        Serve agent tools over stdio using your team connection
+Team settings: --config TOML, --pool ID, --raw, --citation, --ticket.
+Credentials: PENSIEVE_TEAM_URL/TOKEN (personal); PENSIEVE_OWNER_TOKEN (operator only).
+
 Global: --home PATH (default ~/.pensieve); --help
 Environment: PENSIEVE_PROVIDER=ollama|openai, PENSIEVE_MODEL,
 OLLAMA_HOST, OPENAI_API_KEY, PENSIEVE_REMOTE_TOKEN, PENSIEVE_SERVER_TOKEN.
@@ -56,10 +75,13 @@ async function main() {
     session: { type: 'string' }, project: { type: 'string' }, ids: { type: 'string' },
     root: { type: 'string' }, limit: { type: 'string' }, help: { type: 'boolean' },
     output: { type: 'string' }, 'no-browser': { type: 'boolean' },
+    pool:{type:'string'},config:{type:'string'},raw:{type:'boolean'},citation:{type:'string'},ticket:{type:'string'},interval:{type:'string'},
   } });
   const [requested = 'open', arg, extra] = positionals;
   const command = ['open', 'share'].includes(requested) ? 'serve' : requested;
   if (values.help) { process.stdout.write(help); return; }
+  if (teamCommands.includes(command)) { await runTeamCommand(command,arg,extra,values); return; }
+  if (['team-server','team-invite','mcp'].includes(command)) { await runTeamService(command,arg,values); return; }
   const need = (s: string | undefined, label: string): string => { if (!s) throw new Error(`${label} is required. See --help.`); return s; };
   const source = () => { if (arg !== 'codex' && arg !== 'claude') throw new Error('Source must be codex or claude'); return arg; };
   const out = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
@@ -128,10 +150,10 @@ async function main() {
       case 'search': out(await store.search(need(arg, 'Query'), provider, Number(values.limit ?? 8))); break;
       case 'list': out(store.list()); break;
       case 'export': await writeBundle(need(arg, 'Output file'), store.bundle(ids())); out({ exported: arg }); break;
-      case 'ingest': out({ imported: store.add((await readBundle(need(arg, 'Bundle file'))).memories) }); break;
+      case 'ingest': { const bundle = await readBundle(need(arg, 'Bundle file')); out({ imported: store.add(bundle.memories, bundle.provenance) }); break; }
       case 'git-export': out({ file: await gitExport(need(arg, 'Repository'), need(extra, 'Bundle name'), store.bundle(ids())), status: 'Local file only; review, commit and push to share' }); break;
       case 'push': out(await exchange(need(arg, 'Workspace URL'), process.env.PENSIEVE_REMOTE_TOKEN ?? '', store.bundle(ids()))); break;
-      case 'pull': out({ imported: store.add(((await exchange(need(arg, 'Workspace URL'), process.env.PENSIEVE_REMOTE_TOKEN ?? '')) as Bundle).memories) }); break;
+      case 'pull': { const bundle = (await exchange(need(arg, 'Workspace URL'), process.env.PENSIEVE_REMOTE_TOKEN ?? '')) as Bundle; out({ imported: store.add(bundle.memories, bundle.provenance) }); break; }
       case 'serve': case 'workspace': {
         const workspace = command === 'workspace';
         const host = values.host ?? '127.0.0.1';

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "NS-EXTRACT-TRANSPORT-01",
+      "artifact": "docs/spec-8f6f6abd84603e7b/product-extractor.attempt-2.json",
+      "pointer": "/status",
+      "expected": "SUCCESS",
+      "prior_artifact": "docs/spec-8f6f6abd84603e7b/product-extractor.attempt-1.json",
+      "prior_sha256": "b18f1e793ea4524bd21b5169a760d1a38cf98413e34a5552ab2021c6bb33fd61"
+    }
+  ]
+}

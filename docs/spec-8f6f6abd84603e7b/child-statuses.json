@@ -1,0 +1,86 @@
+[
+  {
+    "plan_id": "policy-provenance",
+    "task": "spec-5e421eef8c125c05",
+    "ref": "spec:docs/spec-8f6f6abd84603e7b/children/policy-provenance.md",
+    "depends_on": [],
+    "status": "blocked",
+    "reason": "Mandatory grounding provider unavailable; local transport failed and Claude subscription login required.",
+    "gates": {},
+    "operator_context": {
+      "pending": [],
+      "answered": []
+    },
+    "worktree": null,
+    "verified_commit": null
+  },
+  {
+    "plan_id": "shared-pools",
+    "task": "spec-3aee81c3cec2f828",
+    "ref": "spec:docs/spec-8f6f6abd84603e7b/children/shared-pools.md",
+    "depends_on": [
+      "policy-provenance"
+    ],
+    "status": "blocked",
+    "reason": "Mandatory parent grounding failed; prerequisite not verified.",
+    "gates": {},
+    "operator_context": {
+      "pending": [],
+      "answered": []
+    },
+    "worktree": null,
+    "verified_commit": null
+  },
+  {
+    "plan_id": "creator-sharing",
+    "task": "spec-f13f6bc85b7d06d4",
+    "ref": "spec:docs/spec-8f6f6abd84603e7b/children/creator-sharing.md",
+    "depends_on": [
+      "shared-pools"
+    ],
+    "status": "blocked",
+    "reason": "Mandatory parent grounding failed; prerequisite not verified.",
+    "gates": {},
+    "operator_context": {
+      "pending": [],
+      "answered": []
+    },
+    "worktree": null,
+    "verified_commit": null
+  },
+  {
+    "plan_id": "agent-capture",
+    "task": "spec-e6e5669e50ba5ed2",
+    "ref": "spec:docs/spec-8f6f6abd84603e7b/children/agent-capture.md",
+    "depends_on": [
+      "shared-pools"
+    ],
+    "status": "blocked",
+    "reason": "Mandatory parent grounding failed; prerequisite not verified.",
+    "gates": {},
+    "operator_context": {
+      "pending": [],
+      "answered": []
+    },
+    "worktree": null,
+    "verified_commit": null
+  },
+  {
+    "plan_id": "integration",
+    "task": "spec-224444776ebf2405",
+    "ref": "spec:docs/spec-8f6f6abd84603e7b/children/integration.md",
+    "depends_on": [
+      "creator-sharing",
+      "agent-capture"
+    ],
+    "status": "blocked",
+    "reason": "Mandatory parent grounding failed; prerequisite not verified.",
+    "gates": {},
+    "operator_context": {
+      "pending": [],
+      "answered": []
+    },
+    "worktree": null,
+    "verified_commit": null
+  }
+]

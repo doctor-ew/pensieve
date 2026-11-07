@@ -10,6 +10,20 @@ This is an early, runnable v0.2. Its local vector store uses SQLite persistence 
 exact cosine ranking. It is not an approximate-nearest-neighbor engine; search
 currently scans the selected model’s vectors in memory. See [the store](src/store.ts).
 
+## Create together
+
+The team platform adds personal creator invitations, private/shared pools, a browser
+creator UI, curated recipient links, portable downloads, offline terminal sync,
+and authenticated MCP tools for agents. Pool owners set shared defaults; individual
+repository or conversation overrides can keep captures private or turn them off.
+[Creator guide](docs/pensieve-platform/manual-delivery/CREATOR-GUIDE.md) ·
+[Operator, terminal and connector setup](docs/TEAM-SETUP.md).
+
+Local vectors use SQLite and exact cosine search. The optional Azure AI Search
+adapter is integrated behind the same pool authorization checks; its contract tests
+use synthetic HTTP responses. Live Azure and live Claude app connection remain
+unverified. [Adapter](src/azure-vectors.ts), [verification](docs/pensieve-platform/manual-delivery/VERIFICATION.md).
+
 ## Share without the terminal ceremony
 
 In the UI, click **Share with someone**, review the brief and selected memories,
@@ -66,8 +80,8 @@ the `pensieve` binary; the npm package has **not** been published.
   session, role, timestamp, locator, project, and cosine similarity.
 
 These commands are implemented in [src/cli.ts](src/cli.ts); parsing and stable
-chunk identities are in [src/sessions.ts](src/sessions.ts). The CLI is the v0.2
-agent interface; an MCP server is not yet included.
+chunk identities are in [src/sessions.ts](src/sessions.ts). The CLI and authenticated MCP interfaces support agent capture and recall; see
+[team setup](docs/TEAM-SETUP.md).
 
 Import only reads user and assistant text. It skips tool bodies and reasoning
 blocks, and skips Codex event messages that duplicate response items. Malformed

@@ -1,0 +1,3 @@
+# NS-EXTRACT-TRANSPORT-01
+
+Target: product-extractor.out.json, mandatory grounding receipt. First low-risk gear-0 call returned FAIL with no claims. Bounded helper stopped at category=unknown; no automatic retry occurred. Smallest scoped controller repair: use configured gear 1 Claude extractor route for attempt 2, through shared dispatcher, with unchanged input and parent budget. No global routing/authentication changes or review allowance changes. No source review has occurred. A machine equality check cannot establish transport recovery or source correctness; require schema-validated SUCCESS with complete verified claims.

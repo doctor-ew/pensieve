@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "task": "spec-8f6f6abd84603e7b",
+  "status": "needs-decision",
+  "gate": "scope-assessment",
+  "decision_sha256": "ac3fef4842e5727d01c55a21a57f37f8e9a769eae97b89d01b1aa408265bf4ea",
+  "base_ref": "planning/pensieve-shared-memory",
+  "base_sha": "dcf3880ac1e79d3c6e14b78fbe53ebe3d188eda0",
+  "branch": "nightshift/spec-8f6f6abd84603e7b",
+  "worktree": "/Users/doctorew/shuttlebay/doctorews-laboratory/pensieve-worktrees/shared-memory-input-worktrees/spec-8f6f6abd84603e7b",
+  "source": "spec:docs/pensieve-platform/BUILD-BRIEF.md",
+  "reason": "Controller DECISIONS.md arrived after dashboard request and supplies all three defaults. Dashboard request remains unanswered; reconcile it there before continuation per factory instruction.",
+  "implementation": "not-started",
+  "review": "not-run",
+  "proof": "not-run",
+  "pushed": false,
+  "pr_url": null,
+  "deployed": false,
+  "next_action": "Root controller: reconcile pending dashboard decision using the supplied DECISIONS.md, then resume decomposition and gated child work. Do not reset budgets.",
+  "controller_decisions": "docs/pensieve-platform/DECISIONS.md"
+}

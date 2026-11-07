@@ -1,0 +1,20 @@
+{
+  "findings": [
+    {
+      "artifact": "docs/spec-8f6f6abd84603e7b/product-extractor.attempt-2.json",
+      "artifact_sha256": "b15bdf0cfd312ea97d2b8fefe7da3b9b47375a31b9dac99a18ed1d372c4aa67a",
+      "current_passed": false,
+      "id": "NS-EXTRACT-TRANSPORT-01",
+      "original_failed": true,
+      "passed": false,
+      "pointer": "/status",
+      "prior_artifact": "docs/spec-8f6f6abd84603e7b/product-extractor.attempt-1.json",
+      "prior_sha256": "b18f1e793ea4524bd21b5169a760d1a38cf98413e34a5552ab2021c6bb33fd61"
+    }
+  ],
+  "gate_approval": false,
+  "manifest": "docs/spec-8f6f6abd84603e7b/repair-checks.json",
+  "manifest_sha256": "baa5458889f73edec10dabe4742dfc8a0d256434a8e6dbb220eed262c0d89ace",
+  "schema_version": 1,
+  "status": "failed"
+}
