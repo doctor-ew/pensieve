@@ -44,6 +44,11 @@ test('isolated browser creates, saves, curates, shares and downloads synthetic m
     await page.locator('#select-all').click(); await expect(page.locator('#selection-count')).toHaveText('2 selected'); await page.locator('#select-all').click();
     await page.reload(); await expect(page.locator('#memory-count')).toHaveText('2 saved memories'); await expect(page.locator('#capture-panel')).toBeHidden();
     const firstCard = await page.locator('#memories article').first().boundingBox(); assert.ok(firstCard && firstCard.y < 650, 'Saved memories must appear in the initial desktop viewport');
+    const poolId = await page.locator('#pools').inputValue();
+    await page.goto(base + '/?pool=' + encodeURIComponent(poolId) + '&action=share');
+    await expect(page.locator('#share-panel')).toBeVisible();
+    await expect(page.locator('#selection-count')).toHaveText('2 selected');
+    await page.locator('#close-share').click(); await page.locator('#select-all').click();
     assert.equal(await page.evaluate(() => (window as unknown as { compromised?: boolean }).compromised), undefined);
     await page.locator('#memories article').filter({ hasText: included }).locator('input').check();
     const downloadEvent = page.waitForEvent('download'); await page.locator('#download').click();
