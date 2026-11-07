@@ -19,7 +19,11 @@ export class TeamClient {
   }
   async request<T>(path:string,body?:unknown):Promise<T> {
     let response:Response;
-    try {response=await fetch(this.url+'/api/team/'+path,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30000)});}
+    const accessId=process.env.PENSIEVE_CF_ACCESS_CLIENT_ID,accessSecret=process.env.PENSIEVE_CF_ACCESS_CLIENT_SECRET;
+    if(!!accessId!==!!accessSecret)throw Error('Both Cloudflare service credentials required');
+    if(accessId&&process.env.PENSIEVE_CF_ACCESS_ORIGIN!==this.url)throw Error('Cloudflare service credentials require a matching PENSIEVE_CF_ACCESS_ORIGIN');
+    const accessHeaders:Record<string,string>=accessId&&accessSecret?{'CF-Access-Client-Id':accessId,'CF-Access-Client-Secret':accessSecret}:{};
+    try {response=await fetch(this.url+'/api/team/'+path,{method:body===undefined?'GET':'POST',headers:{...accessHeaders,Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30000)});}
     catch {throw Error('Team service unavailable; queued contributions remain local');}
     if(!response.ok) throw Error(`Team request rejected (${response.status})`);
     return await response.json() as T;
