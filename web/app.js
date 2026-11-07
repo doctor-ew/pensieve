@@ -67,8 +67,14 @@ $('share-form').onsubmit = async event => {
   event.preventDefault(); $('publish-share').disabled = true; $('share-error').textContent = 'Creating your private link…';
   try {
     const result = await api('share', { ...shareScope(), title: $('share-title').value, brief: $('share-brief').value,
-      recipients: $('share-emails').value.split(',').map(x => x.trim()).filter(Boolean), days: Number($('share-days').value), cloudAllowed: $('share-cloud').checked });
-    $('share-link').value = result.url; $('share-result').hidden = false; $('share-error').textContent = 'Ready to send. Only the invited email addresses can open it.';
+      recipients: $('share-emails').value.split(',').map(x => x.trim()).filter(Boolean), days: Number($('share-days').value), cloudAllowed: $('share-cloud').checked, accessMode: 'invitation-link' });
+    $('share-link').value = result.invitations?.[0]?.url ?? result.url; $('share-result').hidden = false;
+    $('share-invitations').replaceChildren();
+    for (const invitation of result.invitations ?? []) {
+      const link = document.createElement('a'); link.className = 'email-invite'; link.href = invitation.mailto; link.textContent = `Email invitation to ${invitation.email}`;
+      $('share-invitations').append(link);
+    }
+    $('share-error').textContent = 'Ready. Open an email draft below, then send it from your email app. Anyone holding the private link can view the shared memories.';
   } catch (error) { $('share-error').textContent = error.message; $('publish-share').disabled = false; }
 };
 $('copy-share').onclick = async () => { try { await navigator.clipboard.writeText($('share-link').value); $('share-error').textContent = 'Link copied.'; } catch { $('share-link').select(); $('share-error').textContent = 'Select and copy the link above.'; } };

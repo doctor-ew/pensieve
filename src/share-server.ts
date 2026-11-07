@@ -11,7 +11,7 @@ async function json(req: IncomingMessage): Promise<Record<string, unknown>> {
   return value;
 }
 const digest = (value: string) => createHash('sha256').update(value).digest();
-export function createShareServer(store: ShareStore, options: { ownerToken: string; publicUrl: string; mailer: Mailer }) {
+export function createShareServer(store: ShareStore, options: { ownerToken: string; publicUrl: string; mailer: Mailer; emailReady?: boolean }) {
   if (options.ownerToken.length < 32) throw new Error('Owner token must contain at least 32 characters');
   const publicUrl = new URL(options.publicUrl);
   if (publicUrl.protocol !== 'https:' && !(publicUrl.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(publicUrl.hostname))) throw new Error('Public sharing requires HTTPS');
@@ -26,7 +26,7 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
       const path = new URL(req.url ?? '/', options.publicUrl).pathname;
       if (req.method === 'GET' && path === '/health') { reply(200, { status: 'ok' }); return; }
       if (req.method === 'GET' && path === '/favicon.ico') { res.writeHead(204); res.end(); return; }
-      const asset = /^\/s\/[a-f0-9]{32}$/.test(path) ? 'reader.html' : path === '/reader.js' ? 'reader.js' : path === '/style.css' ? 'style.css' : undefined;
+      const asset = path === '/' ? 'welcome.html' : /^\/s\/[a-f0-9]{32}$/.test(path) ? 'reader.html' : path === '/reader.js' ? 'reader.js' : path === '/style.css' ? 'style.css' : undefined;
       if (req.method === 'GET' && asset) {
         res.writeHead(200, { 'Content-Type': asset.endsWith('.js') ? 'text/javascript' : asset.endsWith('.css') ? 'text/css' : 'text/html' });
         res.end(await readFile(new URL(`../web/${asset}`, import.meta.url))); return;
@@ -43,8 +43,16 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
         if (!timingSafeEqual(digest(bearer), digest(options.ownerToken))) { reply(401, { error: 'Owner authentication required' }); return; }
         if (req.method === 'GET' && path === '/api/shares') { reply(200, { shares: store.list().map(s => ({ ...s, url: new URL(`/s/${s.id}`, publicUrl).href })) }); return; }
         if (req.method === 'POST' && path === '/api/shares') {
-          const snapshot = store.create(await json(req));
-          reply(201, { id: snapshot.id, url: new URL(`/s/${snapshot.id}`, publicUrl).href, expiresAt: snapshot.expiresAt }); return;
+          const input = await json(req);
+          if (input.accessMode !== 'invitation-link' && options.emailReady === false) throw new Error('Email-code sign-in is not configured. Use private invitation links instead.');
+          const snapshot = store.create(input);
+          const url = new URL(`/s/${snapshot.id}`, publicUrl).href;
+          const invitations = snapshot.accessMode === 'invitation-link' ? snapshot.recipients.map(email => {
+            const link = `${url}#${store.invitation(snapshot.id, email)}`;
+            const message = `You have been invited to read ${snapshot.title}.\n\nOpen your private invitation:\n${link}\n\nThis link expires ${new Date(snapshot.expiresAt).toISOString().slice(0, 10)}. It grants access to the shared brief and memories. Please do not forward it.\n\nDoctor Ew's Laboratory`;
+            return { email, url: link, mailto: `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(snapshot.title)}&body=${encodeURIComponent(message)}` };
+          }) : [];
+          reply(201, { id: snapshot.id, url, expiresAt: snapshot.expiresAt, invitations }); return;
         }
         const revoke = path.match(/^\/api\/shares\/([a-f0-9]{32})\/revoke$/);
         if (req.method === 'POST' && revoke) { store.revoke(revoke[1]); reply(200, { revoked: true }); return; }
@@ -53,6 +61,7 @@ export function createShareServer(store: ShareStore, options: { ownerToken: stri
       if (!route) { reply(404, { error: 'Not found' }); return; }
       const [, id, action] = route;
       if (req.method === 'POST' && action === 'code') {
+        if (options.emailReady === false) throw new Error('Open the complete private invitation link from your email. This service does not use email sign-in codes.');
         const body = await json(req); await store.challenge(id, emailAddress(body.email), options.mailer);
         reply(200, { message: 'If this email is invited, a sign-in code is on its way. Check your inbox.' }); return;
       }

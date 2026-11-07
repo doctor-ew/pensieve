@@ -1,7 +1,9 @@
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/').pop();
 const key = 'pensieve-share-' + id;
-let token = sessionStorage.getItem(key) || '';
+const invitationToken = location.hash.slice(1);
+let token = /^[a-f0-9]{64}$/.test(invitationToken) ? invitationToken : sessionStorage.getItem(key) || '';
+if (invitationToken) { if (token) sessionStorage.setItem(key, token); history.replaceState(null, '', location.pathname); }
 async function api(action = '', data) {
   const response = await fetch(`/api/reader/${id}${action ? '/' + action : ''}`, { method: data ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: data ? JSON.stringify(data) : undefined });
   const value = await response.json();

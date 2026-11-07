@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 import { validateBundle } from './store.js';
 import type { Bundle, Memory } from './types.js';
 
-export interface ShareInput { title: string; brief: string; recipients: string[]; days: number; cloudAllowed: boolean; bundle: Bundle }
+export interface ShareInput { title: string; brief: string; recipients: string[]; days: number; cloudAllowed: boolean; bundle: Bundle; accessMode?: 'email-code' | 'invitation-link' }
 export interface Snapshot extends ShareInput { id: string; createdAt: number; expiresAt: number; revoked: boolean }
 export interface Mailer { sendCode(email: string, code: string): Promise<void> }
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -21,7 +21,8 @@ export function validateShare(value: unknown): ShareInput {
     !Number.isInteger(input.days) || input.days < 1 || input.days > 30 || typeof input.cloudAllowed !== 'boolean') throw new Error('A title, brief, recipients, and expiry of 1–30 days are required');
   const bundle = validateBundle(input.bundle);
   if (!bundle.memories.length) throw new Error('Select at least one memory');
-  return { title: input.title.trim(), brief: input.brief.trim(), recipients: [...new Set(input.recipients.map(emailAddress))], days: input.days, cloudAllowed: input.cloudAllowed, bundle };
+  if (input.accessMode !== undefined && !['email-code', 'invitation-link'].includes(input.accessMode)) throw new Error('Invalid access mode');
+  return { title: input.title.trim(), brief: input.brief.trim(), recipients: [...new Set(input.recipients.map(emailAddress))], days: input.days, cloudAllowed: input.cloudAllowed, bundle, accessMode: input.accessMode ?? 'email-code' };
 }
 export class ShareStore {
   readonly db: DatabaseSync;
@@ -54,6 +55,13 @@ export class ShareStore {
     });
   }
   revoke(id: string) { this.db.prepare('UPDATE shares SET revoked=1 WHERE id=?').run(id); }
+  invitation(id: string, email: string): string {
+    const snapshot = this.get(id);
+    if (snapshot.accessMode !== 'invitation-link' || !snapshot.recipients.includes(email)) throw new Error('This share does not allow invitation-link access');
+    const token = randomBytes(32).toString('hex');
+    this.db.prepare('INSERT INTO access VALUES (?,?,?,?)').run(hash(token), id, email, snapshot.expiresAt);
+    return token;
+  }
   async challenge(id: string, email: string, mailer: Mailer) {
     let snapshot: Snapshot; try { snapshot = this.get(id); } catch { return; }
     if (!snapshot.recipients.includes(email)) return;

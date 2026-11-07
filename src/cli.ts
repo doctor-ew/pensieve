@@ -68,9 +68,8 @@ async function main() {
     const host = values.host ?? '127.0.0.1';
     const publicUrl = process.env.PENSIEVE_PUBLIC_URL ?? `http://127.0.0.1:${port}`;
     if (host !== '127.0.0.1' && !publicUrl.startsWith('https://')) throw new Error('Remote sharing requires PENSIEVE_PUBLIC_URL with HTTPS');
-    if (host !== '127.0.0.1' && (!process.env.RESEND_API_KEY || !process.env.PENSIEVE_EMAIL_FROM)) throw new Error('Remote sharing requires RESEND_API_KEY and PENSIEVE_EMAIL_FROM for recipient sign-in');
     const shares = new ShareStore(join(need(values.home, '--home'), 'shares.sqlite'));
-    const server = createShareServer(shares, { ownerToken, publicUrl, mailer: mailerFromEnv() });
+    const server = createShareServer(shares, { ownerToken, publicUrl, mailer: mailerFromEnv(), emailReady: !!(process.env.RESEND_API_KEY && process.env.PENSIEVE_EMAIL_FROM) });
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, host, resolve); });
     process.stdout.write(`Pensieve sharing service: ${publicUrl}\n`);
     const stop = () => server.close(() => { shares.close(); process.exit(0); });
