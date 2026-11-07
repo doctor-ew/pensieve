@@ -1,8 +1,8 @@
 # Pensieve infrastructure
 
-Status: AWS state bootstrap applied and verified on 2026-11-07; application infrastructure is not yet applied. Terraform 1.17.1, Cloudflare 5.28.1 and AWS 6.72.0 are pinned. Main module manages Access application/policies/service token, optional creator CNAME, Turnstile, SES identity/DKIM/mail-from/DMARC, and a sender-only IAM user. Existing Railway services and volumes remain managed separately; this module does not claim ownership of them.
+Status: AWS state bootstrap applied and verified on 2026-11-07; AWS SES and Route53 email bootstrap is also applied; SES verification and application/Cloudflare activation remain pending. Terraform 1.17.1, Cloudflare 5.28.1 and AWS 6.72.0 are pinned. Main module manages Access application/policies/service token, optional creator CNAME, Turnstile, SES identity/DKIM/mail-from/DMARC, and a sender-only IAM user. Existing Railway services and volumes remain managed separately; this module does not claim ownership of them.
 
-Approved deployment: pensieve.doctorew.com, open verified-email signup, private memory pools by default, share@mail.doctorew.com, us-east-1. AWS read-only discovery on 2026-11-07 confirmed the doctorew profile has production SES enabled and doctorew.com verified. The dedicated mail.doctorew.com identity/DNS still needs provisioning and verification.
+Approved deployment: pensieve.doctorew.com, open verified-email signup, private memory pools by default, share@mail.doctorew.com, us-east-1. AWS read-only discovery on 2026-11-07 confirmed the doctorew profile has production SES enabled and doctorew.com verified. The dedicated mail.doctorew.com identity/DNS has been provisioned; SES verification is pending.
 
 ## Authentication and state
 
