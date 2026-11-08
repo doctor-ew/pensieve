@@ -7,3 +7,6 @@
 !web/
 !web/**
 !Dockerfile
+
+!migrations/
+!migrations/**

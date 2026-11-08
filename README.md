@@ -165,3 +165,7 @@ and leaves existing AGENTS.md and CLAUDE.md untouched. Optional semantic search
 still uses `pensieve index --home .pensieve`. Download authorization checks the
 share's access and expiry; already downloaded copies are not revoked remotely.
 [Download route](src/share-server.ts), [reader](web/reader.js).
+
+## Hosted PostgreSQL and customer login
+
+The hosted platform supports PostgreSQL/pgvector, Cognito sign-in, durable sessions and connector state, and an authorized email outbox. Local SQLite remains supported. See the [architecture/spec and Mermaid diagrams](docs/hosted-platform/SPEC.md), [runbook](docs/hosted-platform/RUNBOOK.md), and [migration procedure](docs/hosted-platform/MIGRATION.md). AWS identity/DNS configuration is in `infra/hosted`; deployment is a separate migration step.

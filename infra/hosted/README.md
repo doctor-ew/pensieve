@@ -1,0 +1,15 @@
+# Hosted customer identity
+
+This AWS-only module implements AC11 of docs/hosted-platform/SPEC.md. It creates Cognito Essentials with self-service email-code login, a public authorization-code client, managed login v2/default branding, and an opt-in Route53 creator CNAME. It does not create Cloudflare resources, CloudFront, SES identity, PostgreSQL, Railway services or runtime credentials. Existing SES and Route53 resources are referenced, not adopted or duplicated.
+
+Use a separate state key from infra/terraform; both may share the existing private encrypted S3 bucket. Copy backend.hcl.example and terraform.tfvars.example to the ignored non-example paths and fill verified values. Authenticate AWS using an operator profile, never checked-in keys. Initialize with the backend file, then review a saved plan before apply. This module has not been applied.
+
+Keep create_creator_dns=false until the database migration, Cognito callback wiring and Railway custom-domain/TLS setup are verified. An existing DNS record must be explicitly imported rather than overwritten. Preserve the old reader origin and its grant hashes during migration. Application configuration comes from application_environment; add PENSIEVE_DATABASE_URL through the deployment secret store. Clear customer Cloudflare Access settings before enabling this identity mode. Cognito client has no secret; PKCE, state, nonce and verified-email enforcement live in src/cognito.ts and must remain enabled.
+
+Email OTP uses Essentials and a verified SES sender in the same region. This configuration has MFA OFF because email OTP is the primary sign-in factor, not a second factor. It does not add Google or enterprise federation. Cognito uses its service-linked email role; the application's sender-only IAM user is separate. No private IAM key is emitted. User-pool deletion protection and Terraform prevent_destroy protect account data; changes to immutable user-pool attributes require a separately reviewed migration.
+
+Validation: terraform init -backend=false, terraform fmt -check -recursive, terraform validate, terraform test. Mock tests require no AWS credentials and prove configuration only, not Cognito login or delivery. Live rollout must exercise verification email, callback/replay rejection, logout, account linking and reader compatibility.
+
+Cost inputs must be confirmed before provisioning runtime/database capacity. Cognito Lite/Essentials currently include 10,000 direct/social monthly active users per account/organization; email is separately billed, and Essentials beyond that allowance is usage-priced. No exact monthly total is claimed here.
+
+Primary sources: https://docs.aws.amazon.com/cognito/latest/developerguide/authentication.html ; https://docs.aws.amazon.com/cognito/latest/developerguide/authorization-endpoint.html ; https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-managed-login.html ; https://aws.amazon.com/cognito/pricing/ . Provider 6.72.0 schema is validated locally; email OTP and managed-login behavior still require live account proof after an authorized apply.

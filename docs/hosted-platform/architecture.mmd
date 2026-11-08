@@ -1,0 +1,15 @@
+flowchart LR
+  Browser[Creator browser] -->|HTTPS session| App[Pensieve modular monolith on Railway]
+  Agent[CLI / MCP agent] -->|Scoped personal or OAuth credential| App
+  Reader[Invited reader] -->|Snapshot grant| App
+  Browser -->|Authorization code + PKCE| Cognito[Amazon Cognito]
+  Cognito -->|Validated callback| App
+  App --> DB[(PostgreSQL + pgvector)]
+  App -->|Embedding provider interface| Embeddings[Configured embeddings]
+  App -->|Claim durable email jobs| Worker[Outbox worker in same deployment]
+  Worker --> SES[Amazon SES]
+  DNS[Route53: pensieve.doctorew.com] --> App
+  Terraform[Terraform] --> Cognito
+  Terraform --> DNS
+  Terraform --> SES
+  Backup[Backup / restore procedure] <--> DB

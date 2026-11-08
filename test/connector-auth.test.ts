@@ -17,14 +17,14 @@ import { TeamStore } from '../src/team-store.js';
 import { createTeamServer } from '../src/team-server.js';
 
 const verifier='a'.repeat(64),challenge=createHash('sha256').update(verifier).digest('base64url');
-async function fixture() {
+async function fixture(browserSession=false) {
   const dir=await mkdtemp(join(tmpdir(),'pensieve-connector-'));const statePath=join(dir,'oauth.sqlite');
   const store=new TeamStore(':memory:');const alice=store.createUser('Alice'),bob=store.createUser('Bob');
   const pool=store.createPool(alice.user.id,'Alice private','private');
   let app:Express; const http=createServer((req,res)=>app(req,res));http.listen(0,'127.0.0.1');await once(http,'listening');
   const url=`http://127.0.0.1:${(http.address() as {port:number}).port}`;let clock=Date.now();
   const provider={identity:'test-v1',embed:async(texts:string[])=>texts.map(()=>[1,0,0])};
-  const connector=createConnectorApp(store,{publicUrl:url,statePath,provider,now:()=>clock});app=connector.app;
+  const connector=createConnectorApp(store,{publicUrl:url,statePath,provider,sessionUser:browserSession?async cookie=>cookie?.includes('appfixture=verified')?alice.user:undefined:undefined,now:()=>clock});app=connector.app;
   const teamServer=createTeamServer(store,{publicUrl:url,ownerToken:'o'.repeat(40),provider});app.use((req,res)=>{teamServer.emit('request',req,res);});
   const form=(path:string,body:Record<string,string>,headers:Record<string,string>={})=>fetch(url+path,{method:'POST',redirect:'manual',headers:{'Content-Type':'application/x-www-form-urlencoded',...headers},body:new URLSearchParams(body)});
   const register=async()=>{
@@ -42,7 +42,7 @@ async function fixture() {
   return {dir,store,alice,bob,pool,url,statePath,provider,connector,register,begin,code,token,form,exchange,advance:(ms:number)=>clock+=ms,close:async()=>{http.closeAllConnections();await new Promise<void>(resolve=>http.close(()=>resolve()));connector.close();store.close();await rm(dir,{recursive:true,force:true});}};
 }
 
-test('OAuth metadata, consent, PKCE, exact redirect/resource/client bindings and one-use codes',async()=>{
+test('AC8 OAuth metadata, consent, PKCE, exact redirect/resource/client bindings and one-use codes',async()=>{
  const f=await fixture();try {
   const metadata=await (await fetch(f.url+'/.well-known/oauth-authorization-server')).json() as {grant_types_supported:string[]};assert.deepEqual(metadata.grant_types_supported,['authorization_code']);
   const resource=await (await fetch(f.url+'/.well-known/oauth-protected-resource/mcp')).json() as {resource:string};assert.equal(resource.resource,f.url+'/mcp');
@@ -58,7 +58,7 @@ test('OAuth metadata, consent, PKCE, exact redirect/resource/client bindings and
  }finally{await f.close();}
 });
 
-test('tokens survive restart as hashes, bind revocation to client, expire, and check creator liveness',async()=>{
+test('AC8 tokens survive restart as hashes, bind revocation to client, expire, and check creator liveness',async()=>{
  const f=await fixture();try{
   const a=await f.register(),b=await f.register();const token=await f.token(a.client_id);
   const second=new ConnectorAuth(f.store,new URL(f.url),f.statePath);assert.equal((await second.verifyAccessToken(token)).extra?.actorId,f.alice.user.id);second.close();
@@ -71,7 +71,7 @@ test('tokens survive restart as hashes, bind revocation to client, expire, and c
  }finally{await f.close();}
 });
 
-test('official SDK HTTP client saves, recalls and exports only authorized data; policy and user isolation hold',async()=>{
+test('AC8 official SDK HTTP client saves, recalls and exports only authorized data; policy and user isolation hold',async()=>{
  const f=await fixture();const clients:Client[]=[];try{
   const registration=await f.register();const access=await f.token(registration.client_id);
   const client=new Client({name:'fixture',version:'1'});clients.push(client);await client.connect(new StreamableHTTPClientTransport(new URL(f.url+'/mcp'),{requestInit:{headers:{Authorization:`Bearer ${access}`}}}));
@@ -91,7 +91,7 @@ test('official SDK HTTP client saves, recalls and exports only authorized data; 
  }finally{await Promise.all(clients.map(c=>c.close()));await f.close();}
 });
 
-test('official SDK stdio-equivalent in-memory transport rechecks revoked actor on tool calls',async()=>{
+test('AC8 official SDK stdio-equivalent in-memory transport rechecks revoked actor on tool calls',async()=>{
  const store=new TeamStore(':memory:');const user=store.createUser('Local');store.createPool(user.user.id,'Private','private');
  const server=createAgentServer(store,user.user.id);const client=new Client({name:'test',version:'1'});const [a,b]=InMemoryTransport.createLinkedPair();
  try{await server.connect(a);await client.connect(b);assert.ok(!(await client.callTool({name:'list_pools',arguments:{}})).isError);store.revokeUser(user.user.id);assert.equal((await client.callTool({name:'list_pools',arguments:{}})).isError,true);}
@@ -99,7 +99,7 @@ test('official SDK stdio-equivalent in-memory transport rechecks revoked actor o
 });
 
 
-test('official SDK starts a real stdio subprocess without credentials on stdout',async()=>{
+test('AC8 official SDK starts a real stdio subprocess without credentials on stdout',async()=>{
  const script=`import {TeamStore} from './src/team-store.ts'; import {connectStdio} from './src/agent-server.ts'; const store=new TeamStore(':memory:');const user=store.createUser('Stdio fixture');store.createPool(user.user.id,'Stdio private','private');await connectStdio(store,user.token);`;
  const client=new Client({name:'stdio-proof',version:'1'});
  const transport=new StdioClientTransport({command:process.execPath,args:['--import','tsx','--input-type=module','-e',script],cwd:process.cwd(),stderr:'pipe'});
@@ -108,7 +108,7 @@ test('official SDK starts a real stdio subprocess without credentials on stdout'
 });
 
 
-test('CLI mcp subprocess connects to remote team account and enforces isolation and revocation',async()=>{
+test('AC8 CLI mcp subprocess connects to remote team account and enforces isolation and revocation',async()=>{
  const f=await fixture();const clients:Client[]=[];
  const connect=async(token:string)=>{const client=new Client({name:'cli-proof',version:'1'});clients.push(client);await client.connect(new StdioClientTransport({command:process.execPath,args:['--import','tsx','src/cli.ts','mcp','--home',f.dir],cwd:process.cwd(),env:{PENSIEVE_TEAM_URL:f.url,PENSIEVE_TEAM_TOKEN:token},stderr:'pipe'}));return client;};
  try {
@@ -121,4 +121,16 @@ test('CLI mcp subprocess connects to remote team account and enforces isolation 
   const recalled=await alice.callTool({name:'recall_memories',arguments:{poolId:f.pool.id,query:'decision'}});assert.ok(JSON.stringify(recalled).includes('Remote stdio decision'));
   f.store.revokeUser(f.alice.user.id);assert.equal((await alice.callTool({name:'list_pools',arguments:{}})).isError,true);
  }finally{await Promise.all(clients.map(c=>c.close()));await f.close();}
+});
+
+// AC8: trusted browser session supports Cognito creators without personal invitation tokens.
+test('AC8 explicit connector consent uses server-resolved browser identity',async()=>{
+ const f=await fixture(true);try{
+  const client=await f.register(),pending=await f.begin(client.client_id);
+  const denied=await f.form('/connector/consent',{nonce:pending.nonce,decision:'approve',actorId:f.alice.user.id},{Origin:f.url,Cookie:pending.cookie});assert.equal(denied.status,400);
+  const approved=await f.form('/connector/consent',{nonce:pending.nonce,decision:'approve'},{Origin:f.url,Cookie:pending.cookie+'; appfixture=verified'});assert.equal(approved.status,302);
+  const code=new URL(approved.headers.get('location')!).searchParams.get('code')!;
+  const exchanged=await f.exchange(client.client_id,code);assert.equal(exchanged.status,200);
+  const access=await exchanged.json();assert.equal((await f.connector.auth.verifyAccessToken(access.access_token)).extra?.actorId,f.alice.user.id);
+ }finally{await f.close();}
 });
