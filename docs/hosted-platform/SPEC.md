@@ -41,7 +41,7 @@ sequenceDiagram
   A->>C: Exchange code with PKCE
   A->>A: Validate JWT signature, issuer, audience, nonce, expiry, token_use, email_verified
   A->>D: Map issuer+subject, create durable hashed session
-  A-->>U: HttpOnly SameSite cookie; no identity tokens in URL/storage
+  A-->>U: HttpOnly SameSite cookie, no identity tokens in URL/storage
 ```
 
 ```mermaid
@@ -60,7 +60,7 @@ sequenceDiagram
   W->>S: Fixed invitation to stored recipient
   S-->>W: Accepted or ambiguous failure
   W->>D: sent / unknown receipt
-  Note over W,S: No exactly-once promise; never silently resend ambiguous attempts
+  Note over W,S: No exactly-once promise, never silently resend ambiguous attempts
 ```
 
 ## Contracts and implementation boundaries

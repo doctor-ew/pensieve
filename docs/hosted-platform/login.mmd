@@ -12,4 +12,4 @@ sequenceDiagram
   A->>C: Exchange code with PKCE
   A->>A: Validate JWT signature, issuer, audience, nonce, expiry, token_use, email_verified
   A->>D: Map issuer+subject, create durable hashed session
-  A-->>U: HttpOnly SameSite cookie; no identity tokens in URL/storage
+  A-->>U: HttpOnly SameSite cookie, no identity tokens in URL/storage
