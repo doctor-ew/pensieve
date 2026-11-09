@@ -1,0 +1,10 @@
+aws_region           = "us-east-1"
+environment          = "aws"
+route53_zone_id       = "Z725VNARWWWV9"
+ses_identity_arn     = "arn:aws:ses:us-east-1:432230020714:identity/mail.doctorew.com"
+sender_email        = "share@mail.doctorew.com"
+owner_token_parameter = "/pensieve/aws/owner-token"
+lambda_zip           = "/absolute/path/to/pensieve-aws.zip"
+budget_emails        = ["drew@doctorew.com"]
+prepare_custom_domain = false
+activate_custom_domain = false

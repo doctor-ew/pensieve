@@ -1,0 +1,109 @@
+name: Deploy AWS serverless
+on:
+  push:
+    branches: [deploy/aws]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Plan the stack, or apply existing Lambda updates only'
+        type: choice
+        required: true
+        default: terraform-plan
+        options: [terraform-plan, terraform-apply]
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: pensieve-aws-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.repository == 'doctor-ew/pensieve' && github.ref == 'refs/heads/deploy/aws'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: us-east-1
+      TF_IN_AUTOMATION: 'true'
+      TF_INPUT: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.1
+      - run: pnpm install --frozen-lockfile
+      - name: Verify and package
+        run: |
+          pnpm build
+          node scripts/build-aws.mjs /tmp/pensieve-aws.zip
+          mkdir /tmp/pensieve-lambda-check
+          unzip -q /tmp/pensieve-aws.zip -d /tmp/pensieve-lambda-check
+          node --input-type=module -e "for (const name of ['aws-handler','aws-worker']) { const entry = await import('/tmp/pensieve-lambda-check/dist/' + name + '.js'); if (typeof entry.handler !== 'function') throw new Error('Missing handler'); }"
+      - name: Load reviewed deployment settings
+        env:
+          DEPLOY_SETTINGS: ${{ vars.PENSIEVE_AWS_TFVARS_JSON }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          settings = json.loads(os.environ['DEPLOY_SETTINGS'])
+          if not isinstance(settings, dict):
+              raise SystemExit('PENSIEVE_AWS_TFVARS_JSON must be a JSON object')
+          settings['lambda_zip'] = '/tmp/pensieve-aws.zip'
+          Path('infra/aws-serverless/github.auto.tfvars.json').write_text(json.dumps(settings))
+          PY
+      - name: Obtain short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::432230020714:role/pensieve-aws-github-deploy
+          aws-region: us-east-1
+          role-session-name: pensieve-${{ github.run_id }}
+          role-duration-seconds: 1200
+      - name: Initialize the shared locked state
+        run: terraform -chdir=infra/aws-serverless init -input=false -backend-config=backend.hcl.example
+      - name: Validate and plan
+        run: |
+          terraform -chdir=infra/aws-serverless validate
+          terraform -chdir=infra/aws-serverless plan -lock-timeout=120s -out=/tmp/pensieve.tfplan
+          terraform -chdir=infra/aws-serverless show -json /tmp/pensieve.tfplan > /tmp/pensieve-plan.json
+      - name: Enforce deployment scope
+        if: inputs.action == 'terraform-apply'
+        run: |
+          python3 - <<'PY'
+          import json
+          plan = json.load(open('/tmp/pensieve-plan.json'))
+          allowed = {'aws_lambda_function.runtime["api"]', 'aws_lambda_function.runtime["worker"]'}
+          rejected = []
+          for item in plan.get('resource_changes', []):
+              actions = item['change']['actions']
+              if actions in (['no-op'], ['read']):
+                  continue
+              if item['address'] not in allowed or actions != ['update']:
+                  rejected.append(f"{item['address']}: {actions}")
+          if rejected:
+              raise SystemExit('Operator infrastructure apply required; GitHub only updates existing Lambda functions:\n' + '\n'.join(rejected))
+          PY
+      - name: Apply the exact reviewed plan
+        if: inputs.action == 'terraform-apply'
+        run: terraform -chdir=infra/aws-serverless apply -input=false -lock-timeout=120s /tmp/pensieve.tfplan
+      - name: Verify public health
+        if: inputs.action == 'terraform-apply'
+        run: |
+          origin=$(terraform -chdir=infra/aws-serverless output -raw public_url)
+          curl --fail --silent --show-error --retry 3 "$origin/health"
+      - name: Deployment receipt
+        if: success()
+        env:
+          DEPLOY_ACTION: ${{ inputs.action || 'terraform-plan' }}
+        run: |
+          printf '### Pensieve AWS\n\nAction: `%s`\n\nCommit: `%s`\n\nOnly existing Lambda updates are eligible for automated apply. Infrastructure changes require operator apply.\n' "$DEPLOY_ACTION" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      # Plans/state can contain sensitive values. Never upload either as artifacts.
+      - name: Remove temporary credentials-independent plan files
+        if: always()
+        run: rm -f /tmp/pensieve.tfplan /tmp/pensieve-plan.json infra/aws-serverless/github.auto.tfvars.json

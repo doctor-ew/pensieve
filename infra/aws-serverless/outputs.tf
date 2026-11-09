@@ -1,0 +1,10 @@
+output "staging_url" { value = aws_apigatewayv2_api.app.api_endpoint }
+output "public_url" { value = local.public_url }
+output "table_name" { value = aws_dynamodb_table.app.name }
+output "snapshot_bucket" { value = aws_s3_bucket.snapshots.id }
+output "vector_bucket" { value = aws_s3vectors_vector_bucket.memories.vector_bucket_name }
+output "vector_index" { value = aws_s3vectors_index.memories.index_name }
+output "api_function" { value = aws_lambda_function.runtime["api"].function_name }
+output "worker_function" { value = aws_lambda_function.runtime["worker"].function_name }
+output "failure_queue_url" { value = aws_sqs_queue.failures.url }
+output "application_environment" { value = local.common_env }

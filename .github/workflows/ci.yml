@@ -5,6 +5,22 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      PENSIEVE_TEST_DATABASE_URL: postgresql://postgres:synthetic-ci-password@localhost:5432/pensieve_test
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-ci-password
+          POSTGRES_DB: pensieve_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pensieve_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     strategy:
       matrix:
         node: [22, 24]

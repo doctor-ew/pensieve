@@ -1,0 +1,13 @@
+# Optional reproducible Linux packaging. Runtime deployment uses the emitted ZIP.
+FROM node:24-bookworm-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends zip && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY src ./src
+COPY web ./web
+COPY scripts/build-aws.mjs ./scripts/build-aws.mjs
+RUN node scripts/build-aws.mjs /tmp/pensieve-aws.zip
+FROM scratch AS artifact
+COPY --from=build /tmp/pensieve-aws.zip /pensieve-aws.zip

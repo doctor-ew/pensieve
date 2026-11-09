@@ -1,6 +1,13 @@
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/').pop();
 const key = 'pensieve-share-' + id;
+let humanToken = ''; let humanWidget;
+if(window.pensieveSecurity?.siteKey) {
+ const script=document.createElement('script'); script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+ script.onload=()=>{humanWidget=window.turnstile.render('#human-check',{sitekey:window.pensieveSecurity.siteKey,action:'pensieve-email',callback:value=>{humanToken=value;},'expired-callback':()=>{humanToken='';},'error-callback':()=>{humanToken='';}});};
+ script.onerror=()=>{$('reader-status').textContent='Verification could not load. Please retry.';};
+ document.head.append(script);
+}
 const invitationToken = location.hash.slice(1);
 let token = /^[a-f0-9]{64}$/.test(invitationToken) ? invitationToken : sessionStorage.getItem(key) || '';
 if (invitationToken) { if (token) sessionStorage.setItem(key, token); history.replaceState(null, '', location.pathname); }
@@ -30,9 +37,9 @@ async function load() {
 }
 $('email-form').onsubmit = async event => {
   event.preventDefault(); const button = event.submitter; button.disabled = true;
-  try { const result = await api('code', { email: $('email').value }); $('reader-status').textContent = result.message; $('code-form').hidden = false; $('code').focus(); }
+  try { const result = await api('code', { email: $('email').value, turnstileToken:humanToken }); $('reader-status').textContent = result.message; $('code-form').hidden = false; $('code').focus(); }
   catch (error) { $('reader-status').textContent = error.message; }
-  finally { button.disabled = false; }
+  finally { button.disabled = false; humanToken=''; if(humanWidget!==undefined)window.turnstile.reset(humanWidget); }
 };
 $('code-form').onsubmit = async event => {
   event.preventDefault();

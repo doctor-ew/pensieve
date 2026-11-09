@@ -1,0 +1,13 @@
+flowchart TD
+  Browser[Browser and CLI or MCP] --> API[Lambda API with shared domain services]
+  Browser --> Cognito[Cognito identity]
+  API --> Auth[Authoritative pool authorization]
+  Auth --> DB[(DynamoDB records and durable work)]
+  API -->|Commit revision and indexing intent| DB
+  DB -->|Stream event| Indexer[Idempotent indexing Lambda]
+  Indexer --> Embeddings[Embedding provider]
+  Indexer --> Vectors[S3 Vectors derived index]
+  API -->|Bounded pool-scoped similarity query| Vectors
+  API -->|Recheck permission and revision before returning text| DB
+  DB -->|Delivery intent| Sender[Invitation Lambda]
+  Sender --> SES[SES]

@@ -7,3 +7,10 @@
 !web/
 !web/**
 !Dockerfile
+
+!migrations/
+!migrations/**
+
+!scripts/
+!scripts/build-aws.mjs
+!Dockerfile.aws

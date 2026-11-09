@@ -19,7 +19,11 @@ export class TeamClient {
   }
   async request<T>(path:string,body?:unknown):Promise<T> {
     let response:Response;
-    try {response=await fetch(this.url+'/api/team/'+path,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30000)});}
+    const accessId=process.env.PENSIEVE_CF_ACCESS_CLIENT_ID,accessSecret=process.env.PENSIEVE_CF_ACCESS_CLIENT_SECRET;
+    if(!!accessId!==!!accessSecret)throw Error('Both Cloudflare service credentials required');
+    if(accessId&&process.env.PENSIEVE_CF_ACCESS_ORIGIN!==this.url)throw Error('Cloudflare service credentials require a matching PENSIEVE_CF_ACCESS_ORIGIN');
+    const accessHeaders:Record<string,string>=accessId&&accessSecret?{'CF-Access-Client-Id':accessId,'CF-Access-Client-Secret':accessSecret}:{};
+    try {response=await fetch(this.url+'/api/team/'+path,{method:body===undefined?'GET':'POST',headers:{...accessHeaders,Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30000)});}
     catch {throw Error('Team service unavailable; queued contributions remain local');}
     if(!response.ok) throw Error(`Team request rejected (${response.status})`);
     return await response.json() as T;
@@ -29,7 +33,11 @@ export class TeamClient {
   async createPool(name:string,visibility:'private'|'shared'){return (await this.request<{pool:TeamPool}>('pools',{name,visibility})).pool;}
   private path(pool:string,action:string){return `pools/${encodeURIComponent(pool)}/${action}`;}
   putMemories(pool:string,memories:Memory[],provenance?:Bundle['provenance'],context:CaptureContext={}){return this.request<{imported:number;ids:string[]}>(this.path(pool,'memories'),{memories,provenance,repository:context.repository,conversation:context.conversation});}
-  async memories(pool:string){return (await this.request<{memories:TeamMemory[]}>(this.path(pool,'memories'))).memories;}
+  async memories(pool:string){
+    const result:TeamMemory[]=[];let cursor:string|undefined;const seen=new Set<string>();
+    do{const page=await this.request<{memories:TeamMemory[];nextCursor?:string}>(this.path(pool,'memories')+(cursor?'?cursor='+encodeURIComponent(cursor):''));result.push(...page.memories);cursor=page.nextCursor;if(cursor){if(seen.has(cursor))throw Error('Invalid pagination cursor');seen.add(cursor);}}while(cursor);
+    return result;
+  }
   export(pool:string,ids:string[]){return this.request<Bundle>(this.path(pool,'export'),{ids});}
   index(pool:string){return this.request<{indexed:number}>(this.path(pool,'index'),{});}
   async search(pool:string,query:string,limit=8){return (await this.request<{hits:Hit[]}>(this.path(pool,'search'),{query,limit})).hits;}

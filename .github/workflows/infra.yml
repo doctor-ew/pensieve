@@ -1,0 +1,21 @@
+name: Infrastructure
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.1
+      - run: terraform fmt -check -recursive infra
+      - run: terraform -chdir=infra/terraform init -backend=false -input=false
+      - run: terraform -chdir=infra/terraform validate
+      - run: terraform -chdir=infra/terraform test
+      - run: terraform -chdir=infra/state-backend init -backend=false -input=false
+      - run: terraform -chdir=infra/state-backend validate
+      - run: terraform -chdir=infra/hosted init -backend=false -input=false
+      - run: terraform -chdir=infra/hosted validate
+      - run: terraform -chdir=infra/hosted test

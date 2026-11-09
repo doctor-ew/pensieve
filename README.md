@@ -1,5 +1,12 @@
 # Pensieve
 
+## Current AWS release — deploy/aws
+
+The production app is **https://pensieve.doctorew.com**. Use **[Connect your AI](https://pensieve.doctorew.com/connect)** to connect another laptop without hosting infrastructure. The current source branch is **deploy/aws**; **deploy/railway-sqlite** preserves the earlier Railway/SQLite deployment. Follow **[Install on another laptop](docs/INSTALL-ANOTHER-LAPTOP.md)** for the CLI and agent setup.
+
+AWS uses Lambda, DynamoDB, S3 snapshots, S3 Vectors, Cognito, SES and CloudFront. Infrastructure is Terraform-managed. The owner admin portal and guided setup are deployed; unfinished admin features and verification limits are recorded in [the deployment receipt](docs/admin-oversight/DEPLOY.md). Earlier local/Railway/PostgreSQL guides below describe those supported modes, not the current production architecture.
+
+
 **Pick up the thread.** Session memory from Doctor Ew’s Laboratory.
 
 Capture a thought, import Codex and Claude Code conversations, and recall relevant
@@ -165,3 +172,7 @@ and leaves existing AGENTS.md and CLAUDE.md untouched. Optional semantic search
 still uses `pensieve index --home .pensieve`. Download authorization checks the
 share's access and expiry; already downloaded copies are not revoked remotely.
 [Download route](src/share-server.ts), [reader](web/reader.js).
+
+## Hosted PostgreSQL and customer login
+
+The hosted platform supports PostgreSQL/pgvector, Cognito sign-in, durable sessions and connector state, and an authorized email outbox. Local SQLite remains supported. See the [architecture/spec and Mermaid diagrams](docs/hosted-platform/SPEC.md), [runbook](docs/hosted-platform/RUNBOOK.md), and [migration procedure](docs/hosted-platform/MIGRATION.md). AWS identity/DNS configuration is in `infra/hosted`; deployment is a separate migration step.
