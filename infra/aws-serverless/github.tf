@@ -63,7 +63,7 @@ resource "aws_iam_role_policy" "github" {
       },
       {
         Sid      = "InspectSnapshotConfiguration", Effect = "Allow"
-        Action   = ["s3:GetBucketPolicy", "s3:GetBucketPolicyStatus", "s3:GetBucketTagging", "s3:GetBucketVersioning", "s3:GetBucketPublicAccessBlock", "s3:GetEncryptionConfiguration", "s3:GetBucketLocation", "s3:GetBucketAcl", "s3:GetBucketCors", "s3:GetBucketWebsite", "s3:GetBucketLogging", "s3:GetBucketNotification", "s3:GetLifecycleConfiguration", "s3:GetReplicationConfiguration", "s3:GetAccelerateConfiguration", "s3:GetBucketObjectLockConfiguration", "s3:GetBucketRequestPayment"]
+        Action   = ["s3:ListBucket", "s3:GetBucketPolicy", "s3:GetBucketPolicyStatus", "s3:GetBucketTagging", "s3:GetBucketVersioning", "s3:GetBucketPublicAccessBlock", "s3:GetEncryptionConfiguration", "s3:GetBucketLocation", "s3:GetBucketAcl", "s3:GetBucketCors", "s3:GetBucketWebsite", "s3:GetBucketLogging", "s3:GetBucketNotification", "s3:GetLifecycleConfiguration", "s3:GetReplicationConfiguration", "s3:GetAccelerateConfiguration", "s3:GetBucketObjectLockConfiguration", "s3:GetBucketRequestPayment"]
         Resource = "${local.arn_prefix}:s3:::${local.name}-snapshots-${local.account_id}"
       },
       {
@@ -75,7 +75,7 @@ resource "aws_iam_role_policy" "github" {
       { Sid = "InspectSchedule", Effect = "Allow", Action = ["events:DescribeRule", "events:ListTargetsByRule", "events:ListTagsForResource"], Resource = "${local.arn_prefix}:events:${var.aws_region}:${local.account_id}:rule/${local.name}-reconcile" },
       { Sid = "InspectDns", Effect = "Allow", Action = ["route53:GetHostedZone", "route53:ListResourceRecordSets"], Resource = "${local.arn_prefix}:route53:::hostedzone/${var.route53_zone_id}" },
       {
-        Sid      = "InspectIdentityConfiguration", Effect = "Allow", Action = ["cognito-idp:DescribeUserPool", "cognito-idp:GetUserPoolMfaConfig", "cognito-idp:DescribeUserPoolClient", "cognito-idp:DescribeManagedLoginBranding", "cognito-idp:DescribeManagedLoginBrandingByClient", "cognito-idp:ListTagsForResource"]
+        Sid      = "InspectIdentityConfiguration", Effect = "Allow", Action = ["cognito-idp:DescribeUserPool", "cognito-idp:GetUserPoolMfaConfig", "cognito-idp:ListUserPoolClients", "cognito-idp:DescribeUserPoolClient", "cognito-idp:DescribeManagedLoginBranding", "cognito-idp:DescribeManagedLoginBrandingByClient", "cognito-idp:ListTagsForResource"]
         Resource = aws_cognito_user_pool.creators.arn
       },
       {
