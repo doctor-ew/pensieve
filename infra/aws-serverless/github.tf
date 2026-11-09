@@ -75,7 +75,7 @@ resource "aws_iam_role_policy" "github" {
       { Sid = "InspectSchedule", Effect = "Allow", Action = ["events:DescribeRule", "events:ListTargetsByRule", "events:ListTagsForResource"], Resource = "${local.arn_prefix}:events:${var.aws_region}:${local.account_id}:rule/${local.name}-reconcile" },
       { Sid = "InspectDns", Effect = "Allow", Action = ["route53:GetHostedZone", "route53:ListResourceRecordSets"], Resource = "${local.arn_prefix}:route53:::hostedzone/${var.route53_zone_id}" },
       {
-        Sid      = "InspectIdentityConfiguration", Effect = "Allow", Action = ["cognito-idp:DescribeUserPool", "cognito-idp:DescribeUserPoolClient", "cognito-idp:DescribeManagedLoginBranding", "cognito-idp:DescribeManagedLoginBrandingByClient", "cognito-idp:ListTagsForResource"]
+        Sid      = "InspectIdentityConfiguration", Effect = "Allow", Action = ["cognito-idp:DescribeUserPool", "cognito-idp:GetUserPoolMfaConfig", "cognito-idp:DescribeUserPoolClient", "cognito-idp:DescribeManagedLoginBranding", "cognito-idp:DescribeManagedLoginBrandingByClient", "cognito-idp:ListTagsForResource"]
         Resource = aws_cognito_user_pool.creators.arn
       },
       {
@@ -91,6 +91,11 @@ resource "aws_iam_role_policy" "github" {
         Sid      = "InspectPensieveEdgeFunction", Effect = "Allow"
         Action   = ["cloudfront:DescribeFunction", "cloudfront:GetFunction", "cloudfront:ListTagsForResource"]
         Resource = "${local.arn_prefix}:cloudfront::${local.account_id}:function/${local.name}-canonical-host"
+      },
+      {
+        Sid      = "InspectPensieveBudgetTags", Effect = "Allow"
+        Action   = ["budgets:ListTagsForResource"]
+        Resource = "${local.arn_prefix}:budgets::${local.account_id}:budget/${local.name}-monthly"
       },
       {
         Sid      = "InspectMetadataWithoutResourceScoping", Effect = "Allow"
