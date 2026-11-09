@@ -10,3 +10,7 @@
 
 !migrations/
 !migrations/**
+
+!scripts/
+!scripts/build-aws.mjs
+!Dockerfile.aws

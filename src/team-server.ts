@@ -22,7 +22,7 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   return value;
 }
 export interface TeamServerOptions {
-  ownerToken: string; publicUrl: string; readerUrl?:string; openSignup?:boolean; access?:AccessVerifier; mailer?:SecureMailer; verification?:VerificationGuard; provider?: EmbeddingProvider; shareStore?: ShareRepository; delivery?:DeliveryRepository; sessionStore?:HostedSessions; cognito?:CognitoAuth;
+  ownerToken: string; publicUrl: string; maxMemoryBatch?:number; maintenance?:()=>Promise<boolean>; readerUrl?:string; openSignup?:boolean; access?:AccessVerifier; mailer?:SecureMailer; verification?:VerificationGuard; provider?: EmbeddingProvider; shareStore?: ShareRepository; delivery?:DeliveryRepository; sessionStore?:HostedSessions; cognito?:CognitoAuth;
   handleExtra?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
 }
 export function createTeamServer(store: TeamRepository, options: TeamServerOptions) {
@@ -41,6 +41,7 @@ export function createTeamServer(store: TeamRepository, options: TeamServerOptio
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     const reply = (status: number, data: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
     try {
+      if(await options.maintenance?.()){reply(503,{error:'Memory migration in progress; retry shortly'});return;}
       // Railway probes use their own Host; exempt only the read-only liveness route.
       const railwayHealth = req.method === 'GET' && req.url === '/health' && req.headers.host === 'healthcheck.railway.app' && !req.headers.origin;
       const requestPath=new URL(req.url??'/',publicUrl).pathname;
@@ -61,7 +62,7 @@ export function createTeamServer(store: TeamRepository, options: TeamServerOptio
       if (options.handleExtra && await options.handleExtra(req, res)) return;
       if (reader && (/^\/s\/[a-f0-9]{32}$/.test(path) || /^\/api\/reader\/[a-f0-9]{32}(?:\/[a-z-]+)?$/.test(path) || ['/reader.js', '/style.css', '/reader-security.js'].includes(path))) { reader.emit('request', req, res); return; }
       if (req.method === 'GET' && path === '/health') { reply(200, { status: 'ok' }); return; }
-      const asset = path === '/' ? 'team.html' : path === '/team.js' ? 'team.js' : path === '/style.css' ? 'style.css' : undefined;
+      const asset = path === '/connect' ? 'connect.html' : path === '/connect.js' ? 'connect.js' : path === '/' ? 'team.html' : path === '/team.js' ? 'team.js' : path === '/style.css' ? 'style.css' : undefined;
       if (req.method === 'GET' && asset) { res.writeHead(200, { 'Content-Type': asset.endsWith('.js') ? 'text/javascript' : asset.endsWith('.css') ? 'text/css' : 'text/html' }); res.end(await readFile(new URL(`../web/${asset}`, import.meta.url))); return; }
       if (!path.startsWith('/api/team/')) { reply(404, { error: 'Not found' }); return; }
       const user = await identityRoutes.team(req, res, url, accessIdentity);
@@ -98,6 +99,7 @@ export function createTeamServer(store: TeamRepository, options: TeamServerOptio
           if (policy.destination === 'shared' && policy.pool !== poolId) throw new HttpError(409, 'Policy targets a different pool');
           if (policy.destination === 'private' && pool.visibility !== 'private') throw new HttpError(409, 'Select or create a private pool before saving');
         }
+        if(options.maxMemoryBatch&&Array.isArray(input.memories)&&input.memories.length>options.maxMemoryBatch)throw new HttpError(413,`Save at most ${options.maxMemoryBatch} memories per request`);
         reply(201, (await store.putMemories(user.id, poolId, input.memories as Memory[], input.provenance as Bundle['provenance']))); return;
       }
       if (action === 'members') { (await store.grantMember(user.id, poolId, input.userId as string, input.role as 'reader' | 'writer')); reply(200, { members: (await store.listMembers(user.id, poolId)) }); return; }
@@ -105,7 +107,7 @@ export function createTeamServer(store: TeamRepository, options: TeamServerOptio
       if (action === 'index' || action === 'search') {
         if (action === 'index') writer();
         if (!options.provider) throw new HttpError(503, 'Embedding provider is not configured on this server');
-        if (action === 'index') reply(200, { indexed: await store.index(user.id, poolId, options.provider) });
+        if (action === 'index') reply(200, { indexed: await store.index(user.id, poolId, options.provider), ...(store.indexingMode==='queued'?{queued:true}:{}) });
         else reply(200, { hits: await store.search(user.id, poolId, input.query as string, options.provider, input.limit as number | undefined) }); return;
       }
       if (action === 'export') { reply(200, (await store.exportBundle(user.id, poolId, input.ids as string[]))); return; }
@@ -114,7 +116,7 @@ export function createTeamServer(store: TeamRepository, options: TeamServerOptio
           writer(); (await store.authorizeShareRevocation(user.id,poolId,shareId));
           if(!options.mailer||!delivery)throw new HttpError(503,'Email delivery is not configured');
           const snapshot=(await options.shareStore.get(shareId));
-          const prior=(await delivery.status(shareId));if(prior.length){reply(200,{deliveries:prior});return;}
+
           const messages=snapshot.recipients.map(email=>({email,title:snapshot.title,url:new URL('/s/'+snapshot.id,readerUrl).href,expiresAt:snapshot.expiresAt,verified:snapshot.accessMode==='email-code'}));
           const results=await delivery.send(user.id,shareId,messages,delivery.runBatch ? options.mailer : {
             sendCode:options.mailer.sendCode,

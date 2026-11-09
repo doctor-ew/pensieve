@@ -33,7 +33,7 @@ export function createAgentServer(store: TeamRepository, actorId: string, provid
   })());
   server.registerTool('index_memories',{description:'Index pending memories after saving. Requires writer access and configured embeddings.',inputSchema:{poolId:z.string().min(1).max(128)}},async input=>protect(async()=>{
     const pool=await store.getPool(actorId,input.poolId);if(pool.role==='reader'||!provider)throw Error('Indexing unavailable');
-    return {indexed:await store.index(actorId,pool.id,provider)};
+    return {indexed:await store.index(actorId,pool.id,provider),...(store.indexingMode==='queued'?{queued:true}:{})};
   })());
   server.registerTool('recall_memories',{description:'Semantic recall from one authorized pool. Requires configured embeddings; never substitutes keyword results.',inputSchema:{poolId:z.string().max(128),query:z.string().min(1).max(4000),limit:z.number().int().min(1).max(50).default(8)}},async input => protect(async()=>{
     await store.getPool(actorId,input.poolId); if (!provider) throw new Error('Embedding provider unavailable');

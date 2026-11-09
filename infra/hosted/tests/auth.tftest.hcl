@@ -13,7 +13,7 @@ run "customer_auth_defaults" {
     error_message = "DNS cutover must remain disabled until rollout checks pass."
   }
   assert {
-    condition     = aws_cognito_user_pool.creators.user_pool_tier == "ESSENTIALS" && contains(aws_cognito_user_pool.creators.sign_in_policy[0].allowed_first_auth_factors, "EMAIL_OTP")
+    condition     = aws_cognito_user_pool.creators.user_pool_tier == "ESSENTIALS" && toset(aws_cognito_user_pool.creators.sign_in_policy[0].allowed_first_auth_factors) == toset(["PASSWORD", "EMAIL_OTP"])
     error_message = "Customer email-code authentication requires the configured Essentials feature tier."
   }
   assert {

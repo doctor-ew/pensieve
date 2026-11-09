@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+const base=process.env.PENSIEVE_PROOF_URL,token=process.env.PENSIEVE_PROOF_TOKEN;
+if(!base||!token)throw Error('Explicit URL and proof credential required');
+const login=await fetch(base+'/auth/login',{redirect:'manual'});assert.equal(login.status,302);assert.equal(new URL(login.headers.get('location')).searchParams.get('prompt'),'login');
+const session=await fetch(base+'/api/team/session',{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({token})});assert.equal(session.status,200);
+assert.match(session.headers.get('set-cookie'),/SameSite=Lax/);
+const cookie=session.headers.get('set-cookie').split(';')[0];
+const logout=await fetch(base+'/api/team/logout',{method:'POST',headers:{Origin:base,Cookie:cookie,'Content-Type':'application/json'},body:'{}'});assert.equal(logout.status,200);assert.match(logout.headers.get('set-cookie'),/Max-Age=0/);
+const target=new URL((await logout.json()).logoutUrl);assert.equal(target.pathname,'/logout');assert.equal(target.protocol,'https:');assert.equal(target.searchParams.get('logout_uri'),base+'/');
+assert.equal((await fetch(base+'/api/team/me',{headers:{Cookie:cookie}})).status,401);
+console.log(JSON.stringify({crossSiteReturnCookie:true,forceReauthentication:true,localSessionRevoked:true,cognitoLogoutRedirect:true}));

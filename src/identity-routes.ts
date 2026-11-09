@@ -24,15 +24,16 @@ export function createIdentityRoutes(store: TeamRepository, options: IdentityOpt
   if (options.cognito && !options.sessionStore) throw Error('Cognito requires durable sessions');
   const publicUrl = new URL(options.publicUrl);
   const sessions = new Map<string, { userId: string; expires: number; accessKey?: string }>();
-  const cookie = (value: string, age: number) => `pensieve_session=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${publicUrl.protocol === 'https:' ? '; Secure' : ''}`;
+  const cookie = (value: string, age: number) => `pensieve_session=${value}; Path=/; HttpOnly; SameSite=${options.cognito?'Lax':'Strict'}; Max-Age=${age}${publicUrl.protocol === 'https:' ? '; Secure' : ''}`;
   return {
     async oauth(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
       const path = url.pathname;
-      if(options.cognito && req.method==='GET' && path==='/auth/login'){
+      if(options.cognito && req.method==='GET' && (path==='/auth/login'||path==='/auth/signup')){
         const binding=randomBytes(32).toString('hex');
-        const location=await options.cognito.begin(binding,url.searchParams.get('returnTo')??'/');
+        const location=new URL(await options.cognito.begin(binding,url.searchParams.get('returnTo')??'/'));
+        if(path==='/auth/signup')location.pathname='/signup';
         res.setHeader('Set-Cookie',`pensieve_login=${binding}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=300${publicUrl.protocol==='https:'?'; Secure':''}`);
-        res.writeHead(302,{Location:location});res.end();return true;
+        res.writeHead(302,{Location:location.href});res.end();return true;
       }
       if(options.cognito && req.method==='GET' && path==='/auth/callback'){
         const binding=/(?:^|;\s*)pensieve_login=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie??'')?.[1]??'';
@@ -60,7 +61,7 @@ export function createIdentityRoutes(store: TeamRepository, options: IdentityOpt
         if (!bearer || !timingSafeEqual(hash(bearer), hash(options.ownerToken))) throw new HttpError(401, 'Operator authentication required');
         const input = await body(req); reply(201, (await store.createUser(input.name as string))); return;
       }
-      if(path==='/api/team/signin-options'&&req.method==='GET'){reply(200,{openSignup:!!options.openSignup,loginUrl:options.cognito?'/auth/login':undefined});return;}
+      if(path==='/api/team/signin-options'&&req.method==='GET'){reply(200,{openSignup:!!options.openSignup,loginUrl:options.cognito?'/auth/login':undefined,signupUrl:options.cognito?'/auth/signup':undefined});return;}
       if (path === '/api/team/access-session' && req.method === 'POST') {
         if(req.headers.origin!==publicUrl.origin)throw new HttpError(403,'Same-origin sign-in required');
         if(!options.openSignup||!accessIdentity?.subject||!accessIdentity.email)throw new HttpError(401,'Verified human identity required');
@@ -103,7 +104,7 @@ export function createIdentityRoutes(store: TeamRepository, options: IdentityOpt
         res.setHeader('Set-Cookie',cookie(token,43_200));reply(200,{user:linked});return;
       }
       if (path === '/api/team/me' && req.method === 'GET') { reply(200, { user, capabilities:{email:options.emailReady,linkIdentity:!!options.cognito,personalToken:!!store.rotatePersonalToken} }); return; }
-      if (path === '/api/team/logout' && req.method === 'POST') { if (sessionToken) {if(options.sessionStore)await options.sessionStore.destroy(sessionToken);else sessions.delete(hash(sessionToken).toString('hex'));} res.setHeader('Set-Cookie', cookie('', 0)); reply(200, { ok: true }); return; }
+      if (path === '/api/team/logout' && req.method === 'POST') { if (sessionToken) {if(options.sessionStore)await options.sessionStore.destroy(sessionToken);else sessions.delete(hash(sessionToken).toString('hex'));} res.setHeader('Set-Cookie', cookie('', 0)); reply(200, { ok: true, ...(options.cognito?{logoutUrl:options.cognito.logoutUrl()}:{}) }); return; }
       return user;
     },
   };

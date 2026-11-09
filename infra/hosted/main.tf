@@ -8,7 +8,7 @@ resource "aws_cognito_user_pool" "creators" {
   mfa_configuration        = "OFF"
   username_configuration { case_sensitive = false }
   admin_create_user_config { allow_admin_create_user_only = false }
-  sign_in_policy { allowed_first_auth_factors = ["EMAIL_OTP"] }
+  sign_in_policy { allowed_first_auth_factors = ["PASSWORD", "EMAIL_OTP"] }
   email_configuration {
     email_sending_account = "DEVELOPER"
     source_arn            = var.ses_identity_arn

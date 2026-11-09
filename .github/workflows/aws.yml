@@ -1,0 +1,40 @@
+name: AWS serverless
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.1
+      - run: terraform -chdir=infra/aws-serverless init -backend=false -input=false
+      - run: terraform -chdir=infra/aws-serverless fmt -check -recursive
+      - run: terraform -chdir=infra/aws-serverless validate
+      - run: terraform -chdir=infra/aws-serverless test
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/build-aws.mjs /tmp/pensieve-aws.zip
+      - name: Verify deployed module layout and imports
+        run: |
+          mkdir /tmp/pensieve-aws-smoke
+          unzip -q /tmp/pensieve-aws.zip -d /tmp/pensieve-aws-smoke
+          test -f /tmp/pensieve-aws-smoke/web/team.html
+          node --input-type=module -e "for (const n of ['aws-handler','aws-worker']) { const m=await import('/tmp/pensieve-aws-smoke/dist/'+n+'.js'); if(typeof m.handler!=='function') throw Error(n+' handler missing'); }"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pensieve-aws-lambda
+          path: /tmp/pensieve-aws.zip
+          retention-days: 7

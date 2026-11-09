@@ -44,7 +44,7 @@ export class CognitoAuth {
     const state=random(),verifier=random(),nonce=random();
     await this.states.put({digest:digest(state),browser:digest(browserBinding),verifier,nonce,returnTo:target.pathname+target.search,expires:this.now()+300_000});
     const url=new URL('/oauth2/authorize',this.config.domain);
-    url.search=new URLSearchParams({response_type:'code',client_id:this.config.clientId,redirect_uri:this.redirectUri,scope:'openid email',state,nonce,code_challenge_method:'S256',code_challenge:createHash('sha256').update(verifier).digest('base64url')}).toString();
+    url.search=new URLSearchParams({response_type:'code',client_id:this.config.clientId,redirect_uri:this.redirectUri,scope:'openid email',prompt:'login',state,nonce,code_challenge_method:'S256',code_challenge:createHash('sha256').update(verifier).digest('base64url')}).toString();
     return url.href;
   }
   async complete(input:{code:string;state:string;browserBinding:string}):Promise<{identity:CognitoIdentity;returnTo:string}> {

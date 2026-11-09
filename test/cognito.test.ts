@@ -30,7 +30,7 @@ async function fixture(){
 
 test('AC4 Cognito binds state/browser and exchanges with S256 PKCE once',async()=>{
  const f=await fixture(),url=await f.begin();const state=url.searchParams.get('state')!;
- assert.equal(url.origin,config.domain);assert.equal(url.searchParams.get('code_challenge_method'),'S256');
+ assert.equal(url.searchParams.get('prompt'),'login');assert.equal(url.origin,config.domain);assert.equal(url.searchParams.get('code_challenge_method'),'S256');
  const saved=[...f.states.states.values()][0];assert.notEqual(saved.digest,state);assert.notEqual(saved.browser,binding);
  assert.equal(url.searchParams.get('code_challenge'),createHash('sha256').update(saved.verifier).digest('base64url'));
  await assert.rejects(f.auth.complete({code:'fixture-code',state,browserBinding:'x'.repeat(64)}),/state/);assert.equal(f.calls(),0);
@@ -95,4 +95,11 @@ test('AC5 durable sessions, atomic state consumption and proof-based legacy link
   const consumed=await Promise.all([states.take(record.digest,record.browser,now),states.take(record.digest,record.browser,now)]);assert.equal(consumed.filter(Boolean).length,1);
   const ephemeral=await sessions.create('alice');now+=43_200_001;assert.equal(await sessions.get(ephemeral),undefined);
  }finally{await pool.end();await admin.query('DROP SCHEMA '+schema+' CASCADE');await admin.end();}
+});
+
+test('Cognito logout uses the configured provider and approved return origin',async()=>{
+ const f=await fixture(),url=new URL(f.auth.logoutUrl());
+ assert.equal(url.origin,config.domain);assert.equal(url.pathname,'/logout');
+ assert.equal(url.searchParams.get('client_id'),config.clientId);
+ assert.equal(url.searchParams.get('logout_uri'),config.publicUrl+'/');
 });
