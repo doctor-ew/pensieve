@@ -1,0 +1,36 @@
+✔ AC8 SQLite registration throttles bursts and reclaims inactive capacity (301.912458ms)
+✔ AC8 PostgreSQL registration throttles bursts and preserves active clients (1791.661042ms)
+▶ PostgreSQL refresh storage conformance
+  ✔ issuance and rotation roll back every record on a late write failure (43.593083ms)
+  ✔ forced overlapping refresh has one winner and replay revokes the winner (24.926333ms)
+  ✔ revocation wins before rotation commit and also invalidates an already rotated pair (37.192375ms)
+  ✔ wrong client/resource/scope and unknown revocation preserve the owning family (44.347459ms)
+  ✔ inactivity and access deadlines reject exactly at expiry (126.851333ms)
+  ✔ cleanup retains clients until absolute expiry and capped expires_in rounds down (44.916708ms)
+  ✔ hash-only state survives provider reconstruction; operation counts stay constant (119.32325ms)
+✔ PostgreSQL refresh storage conformance (499.436625ms)
+✔ AC8 PostgreSQL connector survives restart and atomically consumes grants (57.454875ms)
+▶ AC9 maintenance snapshot import preserves access, vectors, provenance and rolls back conflicts
+  ✔ AC9 original credentials, snapshots, issuer and vector conversion survive (40.474583ms)
+  ✔ AC9 replay is idempotent including duplicate quota rows (10.864ms)
+  ✔ AC9 late conflict rolls back earlier inserts (44.536875ms)
+  ✔ AC9 unknown source columns are rejected (2.414ms)
+  ✔ AC9 populated destination cannot replace issuer (5.223834ms)
+✔ AC9 maintenance snapshot import preserves access, vectors, provenance and rolls back conflicts (400.7345ms)
+▶ AC1/2/3/6/7 PostgreSQL repositories, isolation, vectors, snapshots and durable delivery
+  ✔ AC2/3 atomic idempotent writes, ACL and keyset pagination (41.273917ms)
+  ✔ AC2/3 bounded import and indexing preserve atomic failure across batches (196.0485ms)
+  ✔ AC2/5 personal token rotation and revoked identity mapping (13.953792ms)
+  ✔ AC6 snapshot mapping is atomic and selected evidence cannot be substituted (13.729458ms)
+  ✔ AC3/6 scoped share summaries paginate and enforce owner/creator access (22.228459ms)
+  ✔ AC7 concurrent enqueue, worker restart and no ambiguous retry (26.626041ms)
+  ✔ AC6 recipient challenges enforce attempts and single consumption (14.060875ms)
+✔ AC1/2/3/6/7 PostgreSQL repositories, isolation, vectors, snapshots and durable delivery (535.519833ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2246.9025

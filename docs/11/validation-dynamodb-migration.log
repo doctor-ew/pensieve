@@ -1,0 +1,9 @@
+✔ DynamoDB Local snapshot migration preserves refresh history, revocation and client lifetime (131.007458ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 435.093958

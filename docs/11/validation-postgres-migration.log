@@ -1,0 +1,15 @@
+▶ AC9 maintenance snapshot import preserves access, vectors, provenance and rolls back conflicts
+  ✔ AC9 original credentials, snapshots, issuer and vector conversion survive (32.4855ms)
+  ✔ AC9 replay is idempotent including duplicate quota rows (9.426208ms)
+  ✔ AC9 late conflict rolls back earlier inserts (7.318833ms)
+  ✔ AC9 unknown source columns are rejected (1.453542ms)
+  ✔ AC9 populated destination cannot replace issuer (3.731209ms)
+✔ AC9 maintenance snapshot import preserves access, vectors, provenance and rolls back conflicts (215.877792ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 398.585792

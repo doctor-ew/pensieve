@@ -1,0 +1,19 @@
+▶ PostgreSQL refresh storage conformance
+  ✔ issuance and rotation roll back every record on a late write failure (38.889875ms)
+  ✔ forced overlapping refresh has one winner and replay revokes the winner (24.2005ms)
+  ✔ revocation wins before rotation commit and also invalidates an already rotated pair (30.255458ms)
+  ✔ adapter-specific in-flight contention regression (51.403708ms)
+  ✔ wrong client/resource/scope and unknown revocation preserve the owning family (34.610458ms)
+  ✔ inactivity and access deadlines reject exactly at expiry (49.282708ms)
+  ✔ cleanup retains clients until absolute expiry and capped expires_in rounds down (27.891208ms)
+  ✔ hash-only state survives provider reconstruction; operation counts stay constant (106.086416ms)
+✔ PostgreSQL refresh storage conformance (413.034292ms)
+✔ AC8 PostgreSQL connector survives restart and atomically consumes grants (53.101875ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 648.845958
