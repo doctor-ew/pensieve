@@ -1,0 +1,118 @@
+{
+  "task": "11",
+  "status": "implementation_verified",
+  "delivery": "Validated source for PR and AWS release; see DEPLOY.md for publication and live verification.",
+  "sources": {
+    "src/connector-auth.ts": "1651b7d792f11189f01d60dcff653d48d4b757987d196d50626854257358682a",
+    "src/connector-storage.ts": "2d5fa3219c023ae6ed86be343f6a0156f9d1c70a36d825bde4870c3b840a9d87",
+    "src/aws-connector-storage.ts": "41174794ddcddf6353fa8c2543719e56ff9b6c66c112ef3fd6aa25d17fa3af50",
+    "src/agent-server.ts": "feeba0c0593d673abd9041e1aacb4965dfacb1e2b136f777bdb605c9c95e4021",
+    "src/migrate-hosted.ts": "6d0aa92db3939725c68a9b1cb0f4e159b52121d459d5a776f2b7d70ad6b84ef9",
+    "src/aws-migrate.ts": "d866f0afda9abdebc12a52bd859ed71580b4424a2f7b9d76599c84eac2d98740",
+    "migrations/004-connector-refresh.sql": "d8bdcd0979f5556956d55ecbbfa9debb886cae5a00cbe4345ad03494321e010a",
+    "docs/TEAM-SETUP.md": "d5485e29bd9d9e56961b54228cb491665c5dd81ebcaa4c54409a5d87351cad60",
+    "test/connector-auth.test.ts": "1e847caa94c3f1936453de9f3bbbe5383b5b5e14b39be63e6e8194c1c18b39dd",
+    "test/connector-postgres.test.ts": "2ec0af700d6c89962211f217eb180befd8581cec501a702143f1b56047399b1d",
+    "test/connector-admission.test.ts": "7cb4dd550cabfe1c6a99878fa51046d8e0b9e03a224a298513fb49591db886d0",
+    "test/connector-refresh-contract.ts": "295dcf23b5e17da216c2776c8f72aef5b61305ff15836adfd83499e77b256365",
+    "test/aws-identity.integration.test.ts": "b17a5299b9f0ff3941a28b04c1ffcff8ff32c0545134b712bbbc0fe2f650f352",
+    "test/hosted-migration.test.ts": "c4bf37b0941d18c048ed29c9afbfae2f5e625e157a348bd0484ef06505ed8a84",
+    "test/aws-migration.test.ts": "f8d0448724ab690574d18f112806b79c7856c1e00fe99fcabb9755a252f7f812"
+  },
+  "tests": {
+    "local": {
+      "counts": {
+        "tests": 161,
+        "pass": 141,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 20
+      },
+      "log": "docs/11/validation-local.log",
+      "sha256": "21fba45635fd7638e36a79930fdbffc4f4891fe89260ec16f97decb1073cc167"
+    },
+    "postgres": {
+      "counts": {
+        "tests": 25,
+        "pass": 25,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "log": "docs/11/validation-postgres.log",
+      "sha256": "102bb3763272658933315f86e8ca028c94dff85cd50456cf5a5ea45c852badd4"
+    },
+    "connectors": {
+      "counts": {
+        "tests": 40,
+        "pass": 40,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "log": "docs/11/validation-connectors.log",
+      "sha256": "f609cb92235c9ab9f2d144853333e2fd866dafdb5e4cacd70822c68cd8cbeda9"
+    },
+    "postgres-locks": {
+      "counts": {
+        "tests": 10,
+        "pass": 10,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "log": "docs/11/validation-postgres-locks.log",
+      "sha256": "11dcc1c80ae704f326ab81e4c060b80cd8e95fb0c1d124d1ce5290f1aa7baa04"
+    },
+    "dynamodb": {
+      "counts": {
+        "tests": 10,
+        "pass": 10,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "log": "docs/11/validation-dynamodb.log",
+      "sha256": "939ab3db1bf2c6b9e82bb8f18f792705e6c60c0fb5694e6181e6d1b19a400c9a"
+    },
+    "postgres-migration": {
+      "counts": {
+        "tests": 6,
+        "pass": 6,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "log": "docs/11/validation-postgres-migration.log",
+      "sha256": "fb57661fd8d6c3157f1fa30d108089ff2be744ed04bd028b09ce7c0ff94fb6d9"
+    },
+    "dynamodb-migration": {
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "log": "docs/11/validation-dynamodb-migration.log",
+      "sha256": "53f4e0fa92d570bc24783885a20f3fc8678a7f564cd68eeaab83d8d4865f3908"
+    }
+  },
+  "checks": {
+    "build": "passed",
+    "typecheck": "passed",
+    "diff_check": "passed"
+  },
+  "independent_review": {
+    "provider": "claude",
+    "model": "opus",
+    "scope": "targeted implementation review and repair re-review",
+    "decision": "approve",
+    "receipt": "docs/11/concurrency-re-review.out.json"
+  },
+  "limits": [
+    "Full local suite skips external-service integrations; required refresh adapters and migration integrations were executed separately without skips.",
+    "No live Claude sign-in or production deployment was performed.",
+    "Legacy Nightshift failure/seal receipts remain historical and are not relabeled as passing."
+  ]
+}
