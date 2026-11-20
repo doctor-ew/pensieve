@@ -1,0 +1,28 @@
+{
+  "status": "SUCCESS",
+  "reason": "Targeted re-review of the four retained issue-11 findings. The supplied excerpts resolve all four, and I found no new defect. This is a design review only; no execution is certified. (1) src/aws-connector-storage.ts transact() lines 35-43 retry a TransactionConflict-only cancellation with jitter. A ConditionalCheckFailed reason, even when mixed with TransactionConflict, returns false so the shared auth replay/revoke path runs. Retry stops once a checked row's expiry passes, and other errors are rethrown. test/aws-identity.integration.test.ts lines 17-23 inject two TransactionCanceledException/TransactionConflict errors, then let real DynamoDB Local transactions run. They assert that a retry happened (rotationConflicts<0). (2) revokeFamily() at line 45 retries TransactionConflictException until the tombstone is inserted, a ConditionalCheckFailedException shows it already exists, or expiry passes. The test injects two conflicts and asserts that the rotated access and refresh tokens are then rejected. (3) test/connector-postgres.test.ts lines 23-35 pause after the actual family SELECT ... FOR UPDATE, in both orders. They issue the opposing lock query while the first lock is held, assert the second call has not finished, then assert the expected winner and loser. They also assert that every freshly rotated pair and the original pair are rejected. Lines 36-41 force registration's LOCK TABLE while rotation holds the family row and assert both complete. Migration line 98 locks connector_families before connector_tokens. (4) The header change is an authorized compatibility repair. src/connector-auth.ts lines 53-54 set the headers. test/connector-auth.test.ts pins the exact Referrer-Policy and CSP values for a refresh-enabled client (line 62) and a code-only client (lines 152-153).",
+  "attempts": 3,
+  "artifacts": {
+    "branch": "",
+    "diff": "",
+    "provider": "claude",
+    "model": "opus"
+  },
+  "rules_fired": [
+    "targeted-re-review",
+    "retain-scenario-mapping",
+    "observable-assertion-check",
+    "negative-coverage-check",
+    "no-execution-certification"
+  ],
+  "results": {
+    "decision": "approve",
+    "scenario_ids": [
+      "replay-disconnect",
+      "disconnect-race",
+      "registration-issuance"
+    ],
+    "findings": [],
+    "reviewed_input_sha256": "6fc2a1a5be09e0ba1e79ce97ebf274608de2b3ac13db9b0ec25e2e5133ae485d"
+  }
+}

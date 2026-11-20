@@ -58,7 +58,7 @@ export function createConnectorApp(store:TeamRepository,options:ConnectorOptions
     next();
   });
   const metadata=createOAuthMetadata({provider:auth,issuerUrl:publicUrl,scopesSupported:['memories']});
-  metadata.grant_types_supported=['authorization_code']; metadata.token_endpoint_auth_methods_supported=['none']; metadata.revocation_endpoint_auth_methods_supported=['none'];
+  metadata.grant_types_supported=['authorization_code','refresh_token']; metadata.token_endpoint_auth_methods_supported=['none']; metadata.revocation_endpoint_auth_methods_supported=['none'];
   app.get('/.well-known/oauth-authorization-server',(_req,res)=>res.json(metadata));
   app.use(express.urlencoded({extended:false,limit:'16kb'}));
   const attempts=new Map<string,{start:number;count:number}>();
@@ -83,6 +83,7 @@ export function createConnectorApp(store:TeamRepository,options:ConnectorOptions
       const header=req.headers.authorization;
       if(!header?.startsWith('Bearer '))throw new Error('Missing bearer');
       const identity=await auth.verifyAccessToken(header.slice(7));
+      if(!identity.scopes.includes('memories')){res.status(403).json({error:'Insufficient scope'});return;}
       if (req.headers['mcp-session-id']) {res.status(400).json({error:'Stateless connector does not accept sessions'});return;}
       if(req.method!=='POST'){res.status(405).setHeader('Allow','POST');res.end();return;}
       const server=createAgentServer(store,identity.extra!.actorId as string,options.provider);

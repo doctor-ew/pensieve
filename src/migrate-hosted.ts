@@ -32,7 +32,10 @@ const tables:Table[]=[
  table('connector','connector_clients','id,body','id'),
  table('connector','connector_pending','digest,body,expires','digest'),
  table('connector','connector_codes','digest,body,expires','digest'),
- table('connector','connector_tokens','digest,body,expires','digest')
+ table('connector','connector_tokens','digest,body,expires','digest'),
+ table('connector','connector_families','digest,body,expires','digest'),
+ table('connector','connector_refresh','digest,body,expires','digest'),
+ table('connector','connector_revocations','digest,body,expires','digest')
 ];
 const quote=(name:string)=>'"'+name+'"';
 type Row=Record<string,SQLInputValue>;

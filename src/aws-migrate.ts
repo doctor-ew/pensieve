@@ -11,7 +11,8 @@ const hash=(v:string|Buffer)=>createHash('sha256').update(v).digest('hex');
 const normalize=(v:unknown):unknown=>Array.isArray(v)?v.map(normalize):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,normalize(x)])):v;
 const canonical=(v:unknown)=>JSON.stringify(normalize(v));
 type Row=Record<string,string|number|null>;
-const allowed=['team_meta','team_users','team_access_identities','team_pools','team_members','team_memories','team_origins','team_vectors','team_shares','team_policies','shares','challenges','access','revisions','delivery_attempts','delivery_quota','verification_limits','connector_clients','connector_pending','connector_codes','connector_tokens'];
+const connectorTables=['connector_clients','connector_pending','connector_codes','connector_tokens','connector_families','connector_refresh','connector_revocations'];
+const allowed=['team_meta','team_users','team_access_identities','team_pools','team_members','team_memories','team_origins','team_vectors','team_shares','team_policies','shares','challenges','access','revisions','delivery_attempts','delivery_quota','verification_limits',...connectorTables];
 export interface AwsMigrationReceipt {fingerprint:string;files:Record<string,string>;counts:Record<string,number>;records:number;state:'ready'}
 /** Offline maintenance import. Global visibility gate stays closed after any incomplete import. */
 export async function migrateAws(home:string,db:AwsDatabase,shares:AwsShareStore,assertQuiescent:()=>Promise<void>):Promise<AwsMigrationReceipt>{
@@ -68,8 +69,8 @@ export async function migrateAws(home:string,db:AwsDatabase,shares:AwsShareStore
  }
  for(const row of rows('access'))add('SHARE#'+row.share,'GRANT#'+row.digest,{email:row.email,expiresAt:row.expires,ttl:Math.ceil(Number(row.expires)/1000)});
  for(const row of rows('challenges'))add('SHARE#'+row.share,'CHALLENGE#'+hash(String(row.email)),{email:row.email,digest:row.digest,expiresAt:row.expires,attempts:row.attempts,sent:row.sent,window:row.window,sends:row.sends,ttl:Math.ceil(Math.max(Number(row.expires),Number(row.window)+3600000)/1000)});
- for(const table of ['connector_clients','connector_pending','connector_codes','connector_tokens'])for(const row of rows(table)){
-  const expiresAt=table==='connector_clients'?Math.max(started+86400000,...['connector_pending','connector_codes','connector_tokens'].flatMap(name=>rows(name).filter(grant=>JSON.parse(String(grant.body)).clientId===row.id).map(grant=>Number(grant.expires)))):Number(row.expires);
+ for(const table of connectorTables)for(const row of rows(table)){
+  const expiresAt=table==='connector_clients'?Math.max(started+86400000,...['connector_pending','connector_codes','connector_tokens','connector_families'].flatMap(name=>rows(name).filter(grant=>JSON.parse(String(grant.body)).clientId===row.id).map(grant=>Number(grant.expires)))):Number(row.expires);
   add('CONNECTOR#'+table,String(row.id??row.digest),{body:row.body,expiresAt,ttl:Math.ceil(expiresAt/1000)});
  }
  for(const row of rows('delivery_attempts'))add('DELIVERY#'+row.share,hash(String(row.email)),{kind:'delivery-job',state:['queued','sending'].includes(String(row.status))?'unknown':row.status,actor:row.actor,share:row.share,email:row.email,created:row.created});

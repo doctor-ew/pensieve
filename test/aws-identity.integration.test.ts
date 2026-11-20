@@ -5,8 +5,24 @@ import {awsIdentityFixture} from './aws-identity-fixture.js';
 import {AwsTeamStore} from '../src/aws-team-store.js';
 import {AwsLoginStates,AwsHostedSessions} from '../src/aws-sessions.js';
 import {AwsConnectorStorage} from '../src/aws-connector-storage.js';
+import {ScanCommand,TransactWriteCommand,PutCommand} from '@aws-sdk/lib-dynamodb';
+import {refreshContract} from './connector-refresh-contract.js';
 const table=process.env.PENSIEVE_AWS_TEST_TABLE;
 const hash=(v:string)=>createHash('sha256').update(v).digest('hex');
+test('DynamoDB refresh storage conformance',{skip:!table},async t=>{
+ const fixture=awsIdentityFixture();t.after(fixture.close);const clock={now:Date.now()},storage=new AwsConnectorStorage(fixture.db,()=>clock.now);let calls=0,items=0;
+ const send=fixture.db.client.send.bind(fixture.db.client);fixture.db.client.send=(async(command:unknown)=>{calls++;if(command instanceof TransactWriteCommand)items+=command.input.TransactItems?.length??0;return send(command as Parameters<typeof send>[0]);}) as typeof fixture.db.client.send;
+ const dump=async()=>{const rows:unknown[]=[];let cursor;do{const response=await fixture.db.client.send(new ScanCommand({TableName:table,ConsistentRead:true,ExclusiveStartKey:cursor}));rows.push(...(response.Items??[]).filter(row=>String(row.pk).startsWith('CONNECTOR#')));cursor=response.LastEvaluatedKey;}while(cursor);return JSON.stringify(rows.sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));};
+ await refreshContract(t,storage,clock,dump,()=>({calls,items}),async(auth,issue)=>{
+  const f=await issue(),original=fixture.db.client.send.bind(fixture.db.client);let rotationConflicts=2,revocationConflicts=2;
+  fixture.db.client.send=(async(command:unknown)=>{
+   if(command instanceof TransactWriteCommand&&command.input.TransactItems?.some(item=>item.Put?.Item?.pk==='CONNECTOR#connector_families')&&rotationConflicts-->0)throw Object.assign(new Error('Injected live-transaction contention'),{name:'TransactionCanceledException',CancellationReasons:[{Code:'TransactionConflict'}]});
+   if(command instanceof PutCommand&&command.input.Item?.pk==='CONNECTOR#connector_revocations'&&revocationConflicts-->0)throw Object.assign(new Error('Injected revocation contention'),{name:'TransactionConflictException'});
+   return original(command as Parameters<typeof original>[0]);
+  }) as typeof fixture.db.client.send;
+  try{const next=await auth.exchangeRefreshToken(f.client,f.tokens.refresh_token!);assert.ok(rotationConflicts<0);await auth.revokeToken(f.client,{token:next.refresh_token!});assert.ok(revocationConflicts<0);await assert.rejects(auth.verifyAccessToken(next.access_token));await assert.rejects(auth.exchangeRefreshToken(f.client,next.refresh_token!));}finally{fixture.db.client.send=original;}
+ });
+});
 test('AC6 AWS login state is browser bound, expiring and atomically single use',{skip:!table},async t=>{
  const fixture=awsIdentityFixture();t.after(fixture.close);const store=new AwsLoginStates(fixture.db),digest=hash(randomUUID()),browser=hash(randomUUID()),state={digest,browser,verifier:'verifier',nonce:'nonce',returnTo:'/',expires:Date.now()+60000};await store.put(state);
  assert.equal(await store.take(digest,'wrong',Date.now()),undefined);

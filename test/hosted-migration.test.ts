@@ -27,6 +27,7 @@ test('AC9 maintenance snapshot import preserves access, vectors, provenance and 
  local.recordShare(alice.user.id,poolRecord.id,snapshot.id,[memory.id]);const token=share.invitation(snapshot.id,'friend@example.com');
  share.db.exec('CREATE TABLE delivery_quota(scope TEXT NOT NULL,created INTEGER NOT NULL); INSERT INTO delivery_quota VALUES (\'fixture\',1),(\'fixture\',1)');
  await connector.insert({table:'connector_tokens',key:'fixture-hash',row:{body:'{"fixture":true}',expires:Date.now()+60000}});
+ for(const table of ['connector_families','connector_refresh','connector_revocations'] as const)await connector.insert({table,key:'refresh-fixture-hash',row:{body:JSON.stringify({fixture:true,clientId:'migration-client'}),expires:Date.now()+86400000}});
  const issuer=local.sourceServer;local.close();share.close();connector.close();
  const admin=postgresPool(databaseUrl!),name='migration_'+randomBytes(6).toString('hex');await admin.query(`CREATE DATABASE ${name}`);const url=new URL(databaseUrl!);url.pathname='/'+name;const pool=postgresPool(url.href);
  try{
@@ -39,6 +40,7 @@ test('AC9 maintenance snapshot import preserves access, vectors, provenance and 
    assert.equal((await new PgShareStore(pool).authorize(snapshot.id,token)).id,snapshot.id);
    assert.equal((await pg.search(alice.user.id,poolRecord.id,'decisions',provider,1))[0].id,memory.id);
    assert.deepEqual(await new PgConnectorStorage(pool).get('connector_tokens','fixture-hash'),{body:'{"fixture":true}',expires:Number((await pool.query('SELECT expires FROM connector_tokens')).rows[0].expires)});
+   for(const table of ['connector_families','connector_refresh','connector_revocations'] as const)assert.equal(JSON.parse((await new PgConnectorStorage(pool).get(table,'refresh-fixture-hash'))!.body).clientId,'migration-client');
   });
   await t.test('AC9 replay is idempotent including duplicate quota rows',async()=>{
    const result=await migrateHosted(options);assert.ok(Object.values(result.tables).every(table=>table.inserted===0));assert.equal(result.tables.delivery_quota.unchanged,2);

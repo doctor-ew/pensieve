@@ -1,0 +1,51 @@
+✔ AC8 SQLite registration throttles bursts and reclaims inactive capacity (300.60675ms)
+✔ AC8 PostgreSQL registration throttles bursts and preserves active clients (2232.109666ms)
+▶ SQLite refresh storage conformance
+  ✔ issuance and rotation roll back every record on a late write failure (2.365667ms)
+  ✔ forced overlapping refresh has one winner and replay revokes the winner (0.794167ms)
+  ✔ revocation wins before rotation commit and also invalidates an already rotated pair (0.953375ms)
+  ✔ wrong client/resource/scope and unknown revocation preserve the owning family (1.921416ms)
+  ✔ inactivity and access deadlines reject exactly at expiry (1.848791ms)
+  ✔ cleanup retains clients until absolute expiry and capped expires_in rounds down (0.989834ms)
+  ✔ hash-only state survives provider reconstruction; operation counts stay constant (2.757834ms)
+✔ SQLite refresh storage conformance (13.850333ms)
+✔ registration preserves supported refresh grants and issues one-hour access tokens (59.54125ms)
+✔ refresh rotates opaque credentials, preserves restart state, and rejects owner replay (19.718625ms)
+✔ refresh binds client/resource, preserves narrowing, and enforces actor liveness (20.959292ms)
+✔ refresh expiry boundaries, cleanup retention and absolute cap are enforced (31.580167ms)
+✔ overlapping refresh and disconnect cannot leave a revived family (25.852ms)
+✔ SQLite late-write failures roll back initial issuance and refresh rotation (15.806834ms)
+✔ Chromium consent preserves same-origin POST and follows the registered callback (1150.821708ms)
+✔ AC8 OAuth metadata, consent, PKCE, exact redirect/resource/client bindings and one-use codes (22.284166ms)
+✔ AC8 tokens survive restart as hashes, bind revocation to client, expire, and check creator liveness (28.137833ms)
+✔ AC8 official SDK HTTP client saves, recalls and exports only authorized data; policy and user isolation hold (60.447291ms)
+✔ AC8 official SDK stdio-equivalent in-memory transport rechecks revoked actor on tool calls (1.589167ms)
+✔ AC8 official SDK starts a real stdio subprocess without credentials on stdout (281.689833ms)
+✔ AC8 CLI mcp subprocess connects to remote team account and enforces isolation and revocation (690.193917ms)
+✔ AC8 explicit connector consent uses server-resolved browser identity (12.24425ms)
+▶ PostgreSQL refresh storage conformance
+  ✔ issuance and rotation roll back every record on a late write failure (43.706958ms)
+  ✔ forced overlapping refresh has one winner and replay revokes the winner (25.785417ms)
+  ✔ revocation wins before rotation commit and also invalidates an already rotated pair (34.66925ms)
+  ✔ adapter-specific in-flight contention regression (42.444375ms)
+  ✔ wrong client/resource/scope and unknown revocation preserve the owning family (42.95375ms)
+  ✔ inactivity and access deadlines reject exactly at expiry (61.527042ms)
+  ✔ cleanup retains clients until absolute expiry and capped expires_in rounds down (35.618625ms)
+  ✔ hash-only state survives provider reconstruction; operation counts stay constant (107.926541ms)
+✔ PostgreSQL refresh storage conformance (447.3895ms)
+✔ AC8 PostgreSQL connector survives restart and atomically consumes grants (52.163ms)
+▶ AC9 maintenance snapshot import preserves access, vectors, provenance and rolls back conflicts
+  ✔ AC9 original credentials, snapshots, issuer and vector conversion survive (38.687042ms)
+  ✔ AC9 replay is idempotent including duplicate quota rows (9.745334ms)
+  ✔ AC9 late conflict rolls back earlier inserts (8.673541ms)
+  ✔ AC9 unknown source columns are rejected (2.031625ms)
+  ✔ AC9 populated destination cannot replace issuer (4.6475ms)
+✔ AC9 maintenance snapshot import preserves access, vectors, provenance and rolls back conflicts (254.100791ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3145.253375
