@@ -97,6 +97,6 @@ test('local repository UI indexes and reviews cited code without uploading',asyn
   await expect(page.locator('#repository-results')).toContainText('pensieve-code://');
   await page.locator('#repository-results input[type=checkbox]').check();await page.locator('#repository-publish').click();
   await expect(page.locator('#status')).toHaveText('Choose a destination pool first');
-  assert.equal(store.stats().memories,0);await page.screenshot({path:'/private/tmp/pensieve-repository-context.png',fullPage:true});
+  assert.equal(store.stats().memories,0);await page.screenshot({path:join(tmpdir(),'pensieve-repository-context.png'),fullPage:true});
  }finally{await browser?.close();app.server.closeAllConnections();await new Promise<void>(r=>app.server.close(()=>r()));store.close();await f.close();}
 });

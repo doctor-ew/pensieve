@@ -23,3 +23,7 @@ No AWS deployment or production code publication is established by the local tes
 ## Scope
 
 This first slice reuses MEX's stable symbol identity algorithm with attribution. It does not include MEX's complete graph engine, cross-file call resolution, additional languages, hooks, or automatic cloud repository synchronization. Source and constraints: [REPOSITORY-CONTEXT.md](REPOSITORY-CONTEXT.md).
+
+## CI follow-up
+
+The initial CI run passed infrastructure, AWS packaging, and container checks, but the new browser test used a macOS-specific screenshot path. The test now uses Node’s system temporary directory on every platform. This change does not alter application behavior.
