@@ -7,6 +7,14 @@ import {validateMemoryRecord,validateProvenance} from './memory-record.js';
 import type {Memory,Bundle,Hit} from './types.js';
 import type {TeamPool,TeamMemory,TeamUser} from './team-store.js';
 export interface CaptureContext {repository?:string;conversation?:string;policyFile?:string;automatic?:boolean}
+export class TeamRequestError extends Error {
+  constructor(readonly status:number) {
+    super(status===401
+      ? 'Pensieve rejected the saved personal credential (401). Sign in to Pensieve and reconnect this client using a valid personal credential. Never use an operator key or paste credentials into chat.'
+      : `Team request rejected (${status})`);
+    this.name='TeamRequestError';
+  }
+}
 export class TeamClient {
   readonly url:string;
   readonly binding:string;
@@ -25,7 +33,7 @@ export class TeamClient {
     const accessHeaders:Record<string,string>=accessId&&accessSecret?{'CF-Access-Client-Id':accessId,'CF-Access-Client-Secret':accessSecret}:{};
     try {response=await fetch(this.url+'/api/team/'+path,{method:body===undefined?'GET':'POST',headers:{...accessHeaders,Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30000)});}
     catch {throw Error('Team service unavailable; queued contributions remain local');}
-    if(!response.ok) throw Error(`Team request rejected (${response.status})`);
+    if(!response.ok) throw new TeamRequestError(response.status);
     return await response.json() as T;
   }
   async me(){return (await this.request<{user:TeamUser}>('me')).user;}

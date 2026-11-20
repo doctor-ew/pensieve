@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Express } from 'express';
@@ -133,4 +133,27 @@ test('AC8 explicit connector consent uses server-resolved browser identity',asyn
   const exchanged=await f.exchange(client.client_id,code);assert.equal(exchanged.status,200);
   const access=await exchanged.json();assert.equal((await f.connector.auth.verifyAccessToken(access.access_token)).extra?.actorId,f.alice.user.id);
  }finally{await f.close();}
+});
+
+test('stdio reports rejected credentials and recovers after reconnect without restarting',async()=>{
+ const f=await fixture();const client=new Client({name:'reconnect-proof',version:'1'});
+ const connection=join(f.dir,'team-connection.json');
+ const saveConnection=(token:string)=>writeFile(connection,JSON.stringify({url:f.url,token}),{mode:0o600});
+ try{
+  await saveConnection('invalid-personal-credential');
+  await client.connect(new StdioClientTransport({command:process.execPath,args:['--import','tsx','src/cli.ts','mcp','--home',f.dir],cwd:process.cwd(),env:{},stderr:'pipe'}));
+  const rejected=await client.callTool({name:'list_pools',arguments:{}});
+  assert.equal(rejected.isError,true);
+  assert.match(JSON.stringify(rejected),/AUTHENTICATION_REQUIRED/);
+  assert.ok(!JSON.stringify(rejected).includes('invalid-personal-credential'));
+  await saveConnection(f.alice.token);
+  const recovered=await client.callTool({name:'list_pools',arguments:{}});
+  assert.ok(!recovered.isError);assert.ok(JSON.stringify(recovered).includes(f.pool.id));
+  await saveConnection(f.bob.token);
+  const switched=await client.callTool({name:'list_pools',arguments:{}});
+  assert.ok(!switched.isError);assert.ok(!JSON.stringify(switched).includes(f.pool.id));
+  f.store.revokeUser(f.bob.user.id);
+  const revoked=await client.callTool({name:'list_pools',arguments:{}});
+  assert.equal(revoked.isError,true);assert.match(JSON.stringify(revoked),/AUTHENTICATION_REQUIRED/);
+ }finally{await client.close();await f.close();}
 });

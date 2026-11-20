@@ -25,7 +25,7 @@ function required(value: unknown, name: string): string {
   return value;
 }
 
-export function createApp(store: Store, provider: EmbeddingProvider, options: { token?: string; workspace?: boolean; poolName?: string } = {}) {
+export function createApp(store: Store, provider: EmbeddingProvider, options: { token?: string; workspace?: boolean; poolName?: string; home?:string } = {}) {
   const token = options.token ?? randomBytes(32).toString('hex');
   if (token.length < 32) throw new Error('Server token must be at least 32 characters');
   const workspace = options.workspace ?? false;
@@ -52,11 +52,29 @@ export function createApp(store: Store, provider: EmbeddingProvider, options: { 
         if (origin.host !== req.headers.host) { reply(403, { error: 'Cross-origin request rejected' }); return; }
       }
       if (workspace && path !== '/api/bundle') { reply(404, { error: 'Workspace supports bundle exchange only' }); return; }
+      if(path==='/api/repositories'||path.startsWith('/api/repositories/')){
+        if(!options.home){reply(404,{error:'Repository context requires a local Pensieve home'});return;}
+        const {CodeContext,publishCode}=await import('./code-context.js');const context=new CodeContext(options.home);
+        try{
+          if(req.method==='GET'&&path==='/api/repositories'){reply(200,{repositories:await Promise.all(context.list().map(r=>context.status(r.id)))});return;}
+          if(req.method==='GET'&&path==='/api/repositories/pools'){const {connectedClient}=await import('./team-cli.js');reply(200,{pools:await (await connectedClient(options.home)).pools()});return;}
+          if(req.method!=='POST'){reply(405,{error:'POST required'});return;}
+          if(busy){reply(409,{error:'Another operation is running; retry shortly'});return;}busy=true;ownsLock=true;
+          const input=await body(req);
+          if(path==='/api/repositories/index')reply(200,await context.index(required(input.path,'Repository path'),input.pool===undefined||input.pool===''?undefined:required(input.pool,'Pool ID')));
+          else if(path==='/api/repositories/search'){const id=required(input.repositoryId,'Repository ID');reply(200,{repository:await context.status(id),hits:context.search(id,required(input.query,'Query'))});}
+          else if(path==='/api/repositories/publish'){
+            if(!Array.isArray(input.ids)||input.ids.some(id=>typeof id!=='string'))throw Error('Select code symbols to publish');
+            const {connectedClient}=await import('./team-cli.js');reply(200,await publishCode(context,await connectedClient(options.home),required(input.repositoryId,'Repository ID'),required(input.pool,'Pool ID'),input.ids as string[]));
+          }else reply(404,{error:'Unknown repository operation'});
+        }finally{context.close();}
+        return;
+      }
       if (req.method === 'GET' && path === '/api/bundle' && workspace) {
         reply(200, { format: 'pensieve/v1', createdAt: new Date().toISOString(), memories: store.list() }); return;
       }
       if (req.method === 'GET' && path === '/api/memories') { reply(200, { ...store.stats(), items: store.list() }); return; }
-      if (req.method === 'GET' && path === '/api/status') { reply(200, { ...store.stats(), provider: provider.identity, poolName: options.poolName ?? 'Memory pool', sharing: !!(shareConfig().url && shareConfig().token), shareService: shareConfig().url ?? '' }); return; }
+      if (req.method === 'GET' && path === '/api/status') { reply(200, { ...store.stats(), provider: provider.identity, poolName: options.poolName ?? 'Memory pool', codeContext: !!options.home, sharing: !!(shareConfig().url && shareConfig().token), shareService: shareConfig().url ?? '' }); return; }
       if (req.method === 'GET' && path === '/api/shares') { reply(200, await shareRequest()); return; }
       if (req.method !== 'POST') { reply(404, { error: 'Not found' }); return; }
       if (busy) { reply(409, { error: 'Another operation is running; retry shortly' }); return; }
