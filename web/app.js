@@ -54,7 +54,8 @@ $('repository-search-form').onsubmit=action(async()=>{
     const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.onchange=()=>{checkbox.checked?codeSelection.add(hit.id):codeSelection.delete(hit.id);$('repository-publish').disabled=!codeSelection.size;};
     label.append(checkbox,document.createTextNode(` ${hit.name} · ${hit.file}:${hit.startLine}-${hit.endLine}`));
     const code=document.createElement('pre');code.textContent=hit.snippet;const citation=document.createElement('small');citation.textContent=hit.citation+(hit.truncated?' · Excerpt truncated':'');
-    article.append(label,code,citation);$('repository-results').append(article);
+    const copy=document.createElement('button');copy.type='button';copy.className='quiet';copy.textContent='Copy citation';copy.onclick=action(async()=>{await navigator.clipboard.writeText(hit.citation);status('Code citation copied. Add it to a decision to link the reasoning to this snapshot.');});
+    article.append(label,code,citation,copy);$('repository-results').append(article);
   }
   status('Code results are historical source evidence.');
 });

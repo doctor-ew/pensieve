@@ -93,8 +93,11 @@ export class CodeContext {
     const snapshot=this.get(repo);if(!Number.isInteger(limit)||limit<1||limit>50)throw Error('Limit must be between 1 and 50');
     if(typeof query!=='string'||query.length>1000)throw Error('Query must be at most 1,000 characters');
     const words=query.match(/[\p{L}\p{N}_]+/gu)?.slice(0,12);if(!words?.length)throw Error('Enter a symbol, path, or code term');
-    const rows=this.db.prepare('SELECT id FROM code_search WHERE code_search MATCH ? AND repo=? ORDER BY bm25(code_search,0,0,8,4,1) LIMIT ?').all(words.map(w=>'"'+w+'"').join(' OR '),repo,limit);
-    return rows.map(r=>({...this.symbol(repo,String(r.id)),repositoryId:repo,revision:snapshot.revision,citation:this.citation(snapshot,this.symbol(repo,String(r.id)))}));
+    const exact=query.trim().toLowerCase();
+    const rows=this.db.prepare(`SELECT id FROM code_search WHERE code_search MATCH ? AND repo=?
+      ORDER BY CASE WHEN lower(name)=? OR substr(lower(name),-(length(?)+1))='.'||? THEN 0 ELSE 1 END,
+      bm25(code_search,0,0,8,4,1) LIMIT ?`).all(words.map(w=>'"'+w+'"').join(' OR '),repo,exact,exact,exact,limit);
+    return rows.map(r=>{const symbol=this.symbol(repo,String(r.id));return {...symbol,repositoryId:repo,revision:snapshot.revision,citation:this.citation(snapshot,symbol)};});
   }
   private symbol(repo:string,id:string):CodeSymbol{const row=this.db.prepare('SELECT body FROM code_symbols WHERE repo=? AND id=?').get(repo,id);if(!row)throw Error('Selected symbol is not in this repository snapshot');return JSON.parse(String(row.body));}
   private citation(repo:RepositorySnapshot,s:CodeSymbol){return `pensieve-code://${repo.id}/${encodeURIComponent(s.file)}?rev=${repo.revision}&symbol=${encodeURIComponent(s.id)}#L${s.startLine}-L${s.endLine}`;}

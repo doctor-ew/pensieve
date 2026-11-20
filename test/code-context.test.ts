@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,mkdir,symlink,rm} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {execFile} from 'node:child_process';
@@ -13,6 +14,9 @@ import {createTeamServer} from '../src/team-server.js';
 import {remoteAgentServer} from '../src/team-service.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
+import {createApp} from '../src/server.js';
+import {Store} from '../src/store.js';
+import {chromium,expect} from '@playwright/test';
 const exec=promisify(execFile);
 async function fixture(){
  const dir=await mkdtemp(join(tmpdir(),'pensieve-code-')),root=join(dir,'repo'),home=join(dir,'home');await mkdir(root);
@@ -44,6 +48,13 @@ test('indexing uses committed regular source files, marks drift, and replaces de
   assert.throws(()=>f.context.memories(snapshot.id,[]),/Explicitly select/);assert.throws(()=>f.context.memories(snapshot.id,['missing']),/not in this repository/);
  }finally{await f.close();}
 });
+test('exact method matches rank above local variables in the method scope',async()=>{
+ const f=await fixture();try{
+  await writeFile(join(f.root,'auth.ts'),'export class Store { rotatePersonalToken() { const token = "synthetic"; const digest = token.length; return {token, digest}; } }');
+  await f.git('add','auth.ts');await f.git('commit','-qm','Method ranking fixture');
+  const snapshot=await f.context.index(f.root);assert.equal(f.context.search(snapshot.id,'rotatePersonalToken',1)[0].name,'Store.rotatePersonalToken');
+ }finally{await f.close();}
+});
 test('selected code publishes through real pool authorization and becomes remotely searchable',async()=>{
  const f=await fixture(),store=new TeamStore(':memory:');const owner=store.createUser('Owner'),outsider=store.createUser('Outsider');
  const pool=store.createPool(owner.user.id,'Code decisions','shared');
@@ -67,4 +78,25 @@ test('MCP local code retrieval works without a valid remote credential',async()=
   const result=await client.callTool({name:'search_code',arguments:{repositoryId:snapshot.id,query:'authenticate'}});assert.ok(!result.isError);assert.match(JSON.stringify(result),/pensieve-code:/);
   const remote=await client.callTool({name:'list_pools',arguments:{}});assert.equal(remote.isError,true);
  }finally{await client.close();await server.close();await f.close();}
+});
+
+test('local repository UI indexes and reviews cited code without uploading',async()=>{
+ const f=await fixture(),store=new Store(':memory:');
+ const app=createApp(store,{identity:'synthetic',embed:async texts=>texts.map(()=>[1,0])},{home:f.home});
+ await new Promise<void>(r=>app.server.listen(0,'127.0.0.1',r));const address=app.server.address();assert.ok(address&&typeof address==='object');
+ const chrome='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+ let browser:Awaited<ReturnType<typeof chromium.launch>>|undefined;
+ try{
+  browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+  const page=await browser.newPage();await page.goto(`http://127.0.0.1:${address.port}/#${app.token}`);
+  await expect(page.locator('#status')).toHaveText('Private memory pool ready.');
+  await page.locator('#repository-path').fill(f.root);await page.getByRole('button',{name:'Index committed code'}).click();
+  await expect(page.locator('#repository-status')).toContainText('Stored locally; nothing uploaded.');
+  await page.locator('#repository-query').fill('authenticate');await page.getByRole('button',{name:'Search code',exact:true}).click();
+  await expect(page.locator('#repository-results article')).toHaveCount(1);
+  await expect(page.locator('#repository-results')).toContainText('pensieve-code://');
+  await page.locator('#repository-results input[type=checkbox]').check();await page.locator('#repository-publish').click();
+  await expect(page.locator('#status')).toHaveText('Choose a destination pool first');
+  assert.equal(store.stats().memories,0);await page.screenshot({path:'/private/tmp/pensieve-repository-context.png',fullPage:true});
+ }finally{await browser?.close();app.server.closeAllConnections();await new Promise<void>(r=>app.server.close(()=>r()));store.close();await f.close();}
 });
