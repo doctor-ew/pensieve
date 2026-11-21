@@ -100,6 +100,39 @@ test('CLI outbox survives offline and ambiguous acknowledgments, then syncs idem
   } finally { await f.close(); }
 });
 
+test('CLI sync batches large pulls, preserves provenance and retries after a later export fails', { timeout: 40_000 }, async () => {
+  const f = await fixture();
+  try {
+    const memories = Array.from({length:205}, (_,i) => makeMemory({text:`Synthetic batched sync ${i}`,source:'manual',session:'batch-sync',role:'user',timestamp:'2026-01-01T00:00:00.000Z',locator:String(i),project:''}));
+    f.store.putMemories(f.alice.user.id, f.pool.id, memories);
+    const originalExport = f.store.exportBundle.bind(f.store);
+    const sizes:number[] = []; let failSecond = true;
+    f.store.exportBundle = (actor,pool,ids) => {
+      sizes.push(ids.length);
+      assert.ok(ids.length <= 100, 'agent transport export limit');
+      if(failSecond && sizes.length === 2) throw Error('Synthetic later export failure');
+      return originalExport(actor,pool,ids);
+    };
+    await f.cli(['connect', f.base], f.alice.token);
+    await assert.rejects(f.cli(['sync','--pool',f.pool.id]));
+    assert.deepEqual(sizes,[100,100]);
+    const partial = new Store(join(f.home,'memory.sqlite'));
+    try { assert.equal(partial.list().length,100); } finally { partial.close(); }
+    failSecond = false; sizes.length = 0;
+    assert.match((await f.cli(['sync','--pool',f.pool.id])).stdout,/"pulled": 105/);
+    assert.deepEqual(sizes,[100,100,5]);
+    const local = new Store(join(f.home,'memory.sqlite'));
+    try {
+      assert.deepEqual(new Set(local.list().map(m=>m.id)),new Set(memories.map(m=>m.id)));
+      for(const memory of memories){
+        const origins=local.bundle([memory.id]).provenance!;
+        assert.ok(origins.some(p=>p.contributorId===f.alice.user.id && p.poolId===f.pool.id && p.verification==='unverified-import'));
+      }
+    } finally { local.close(); }
+    assert.match((await f.cli(['sync','--pool',f.pool.id])).stdout,/"pulled": 0/);
+  } finally { await f.close(); }
+});
+
 test('CLI sync holds queued data after off/private/target changes and account switch', { timeout: 50_000 }, async () => {
   const f = await fixture();
   try {

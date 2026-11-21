@@ -113,8 +113,18 @@ export async function runTeamCommand(command:string,arg:string|undefined,extra:s
       const local=await localPolicy({...options,config:ctx.policyFile??options.config});if(local.destination!=='shared'||local.pool!==p)return local;
       const remote=await client.policy(p,ctx);return Object.keys(remote.policies).length?remote.effective:local;
     }));}finally{queue.close();}
-    const memories=await client.memories(pool);if(!memories.length){out({pulled:0});return;}const bundle=await client.export(pool,memories.map(m=>m.memory.id));
-    const store=new Store(join(home,'memory.sqlite'));try{out({pulled:store.add(bundle.memories,bundle.provenance)});}finally{store.close();}return;
+    const memories=await client.memories(pool);if(!memories.length){out({pulled:0});return;}
+    const store=new Store(join(home,'memory.sqlite'));
+    try{
+      let pulled=0;
+      // The signed-in agent transport accepts at most 100 IDs per export.
+      // Commit each batch so a failed pull can safely resume on the next sync.
+      for(let offset=0;offset<memories.length;offset+=100){
+        const bundle=await client.export(pool,memories.slice(offset,offset+100).map(m=>m.memory.id));
+        pulled+=store.add(bundle.memories,bundle.provenance);
+      }
+      out({pulled});
+    }finally{store.close();}return;
   }
   throw Error('Unknown team command');
 }

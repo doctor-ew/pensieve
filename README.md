@@ -11,6 +11,69 @@ and documents searchable by connected AI agents. MEX powers semantic code analys
 Pensieve adds shared storage, revision citations, automatic updates, and cited
 Markdown/Swift source coverage.
 
+## How meaning-based search works
+
+Pensieve brings conversation memories and supported committed repository source into
+shared, permission-controlled pools. MEX extracts code symbols and relationships;
+Markdown/MDX and Swift currently contribute cited text rather than semantic symbol
+analysis. Each repository publication retains source paths, commit references and a
+coverage report. [Repository intake](docs/REPOSITORY-SYNC.md#L13).
+
+**Vectorization** converts a passage into a numerical representation of its meaning,
+called an embedding. Pensieve uses Amazon Bedrock Titan Text Embeddings V2 for both
+saved passages and search questions, and compares their vectors in S3 Vectors. This
+lets an agent search for a concept without needing the exact words used in the source.
+Code analysis supplies structural context; embeddings provide meaning-based retrieval.
+These are complementary steps, not model training. [Embedding and search implementation](src/aws-vectors.ts#L24).
+
+Results are relevant evidence, not guaranteed answers. Pensieve retrieves the original
+records and rechecks access and revision validity before returning them. Indexing is
+asynchronous; a successful save does not by itself establish that recall is ready.
+[Authorized recall](src/aws-team-store.ts), [indexing worker](src/aws-worker.ts#L1).
+
+### Hosted AWS architecture
+
+```mermaid
+flowchart TB
+    Users["People and AI agents<br/>Web · terminal · MCP chat hosts"]
+    Repo["Committed repository source"]
+    Producer["Repository publisher<br/>MEX code analysis + cited documents"]
+    Edge["CloudFront → API Gateway"]
+    API["API Lambda<br/>Memory pools · authorization · MCP OAuth"]
+    Identity["Cognito<br/>Browser account creation and sign-in"]
+    DB[("DynamoDB<br/>Original records · permissions · work state")]
+    Worker["Worker Lambda<br/>Asynchronous indexing and delivery"]
+    Embed["Amazon Bedrock<br/>Titan Text Embeddings V2"]
+    Vector[("S3 Vectors<br/>Meaning-based search index")]
+    Snapshots[("S3<br/>Selected-memory share snapshots")]
+    Email["SES<br/>Authorized invitation emails"]
+
+    Users --> Edge --> API
+    Users -. "browser verification" .-> Identity
+    Identity -. "verified identity" .-> API
+    Repo --> Producer
+    Producer -->|"publish revision-cited records"| Edge
+    API <-->|"save and permission-checked read"| DB
+    DB -->|"DynamoDB Streams"| Worker
+    Worker -->|"embed saved passages"| Embed
+    Worker -->|"store resulting vectors"| Vector
+    API -->|"embed search question"| Embed
+    API <-->|"search authorized pool"| Vector
+    API -->|"create or read selected share"| Snapshots
+    Worker -->|"send requested invitations"| Email
+```
+
+Diagram sources: [publisher](src/repository-sync.ts#L21),
+[edge](infra/aws-serverless/cloudfront.tf#L42), [API and worker infrastructure](infra/aws-serverless/compute.tf#L6),
+[identity and service composition](src/aws-runtime.ts#L40),
+[vectorization and vector search](src/aws-vectors.ts#L24),
+[worker dispatch](src/aws-worker.ts#L1), [snapshot storage](src/aws-share-store.ts).
+Arrows show logical requests and data flow; embedding results return to the caller.
+DynamoDB is authoritative; the vector index helps find candidate records and does not
+itself grant access. Terraform manages AWS resources. Operational logs, retries and
+reconciliation are omitted from this overview. [Authorization and indexing](src/aws-team-store.ts),
+[Terraform and reconciliation](infra/aws-serverless/compute.tf#L111).
+
 ## Start here
 
 - **New users:** [Hosted onboarding and connection troubleshooting](docs/ONBOARDING.md).
