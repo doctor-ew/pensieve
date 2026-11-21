@@ -36,6 +36,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check-types
       - run: pnpm exec playwright install --with-deps chromium
+      - run: npm ci --prefix runtime/mex --ignore-scripts --no-audit --no-fund
       - run: pnpm test
       - run: pnpm build
   container:
