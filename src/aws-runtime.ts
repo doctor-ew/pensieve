@@ -24,7 +24,8 @@ import {sesMailerFromEnv} from './ses-mailer.js';
 import {verificationGuard} from './verification-guard.js';
 const required=(name:string)=>{const value=process.env[name];if(!value)throw Error(`${name} required`);return value;};
 export async function createAwsResources(){
- const db=new AwsDatabase(DynamoDBDocumentClient.from(new DynamoDBClient({maxAttempts:10,retryMode:'adaptive'}),{marshallOptions:{removeUndefinedValues:true}}),required('PENSIEVE_AWS_TABLE'));
+ // Keep SDK retries below the API's 29-second deadline so failed writes can release their leases.
+ const db=new AwsDatabase(DynamoDBDocumentClient.from(new DynamoDBClient({maxAttempts:3,retryMode:'standard',requestHandler:{connectionTimeout:1000,requestTimeout:3000}}),{marshallOptions:{removeUndefinedValues:true}}),required('PENSIEVE_AWS_TABLE'));
  const audit=new AwsAudit(db);
  const provider=bedrockEmbeddings(undefined,Number(process.env.PENSIEVE_EMBEDDING_DIMENSIONS??256));
  const vectors=new AwsVectors(new S3VectorsClient({maxAttempts:3}),required('PENSIEVE_AWS_VECTOR_BUCKET'),required('PENSIEVE_AWS_VECTOR_INDEX'),Number(process.env.PENSIEVE_EMBEDDING_DIMENSIONS??256));
