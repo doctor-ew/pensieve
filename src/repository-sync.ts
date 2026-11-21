@@ -13,7 +13,7 @@ const execute=promisify(execFile);
 /** Only committed, bounded source blobs are extracted; never run project setup. */
 export async function committedRepositorySnapshot(path:string){
  const cwd=resolve(path);
- const git=async(args:string[],maxBuffer=4000000)=>(await execute('git',['--no-pager','-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null',...args],{cwd,encoding:'utf8',timeout:30000,maxBuffer,env:{...process.env,GIT_OPTIONAL_LOCKS:'0',GIT_NO_REPLACE_OBJECTS:'1'}})).stdout;
+ const git=async(args:string[],maxBuffer=4000000)=>(await execute('git',['--no-pager','-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null',...args],{cwd,encoding:'utf8',timeout:30000,maxBuffer,env:{PATH:process.env.PATH,HOME:cwd,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_OPTIONAL_LOCKS:'0',GIT_NO_REPLACE_OBJECTS:'1'}})).stdout;
  const revision=(await git(['rev-parse','--verify','HEAD^{commit}'])).trim();
  const entries=(await git(['ls-tree','-r','-z','--full-tree',revision])).split('\0').filter(Boolean);
  const files:SourceFile[]=[];let bytes=0;
