@@ -5,25 +5,29 @@ import type {Memory,Hit} from './types.js';
 import type {TeamRepository} from './repositories.js';
 import type {RepositoryRecords} from './repository-records.js';
 import type {ConnectedRepository} from './repository-service.js';
-import type {SourceSnapshot} from './repository-artifacts.js';
+import {semanticSource,type SourceSnapshot} from './repository-artifacts.js';
 import {validateMemoryRecord} from './memory-record.js';
 import {packedRepositoryKnowledge} from './repository-knowledge-chunks.js';
 import {MEX_VERSION} from './mex-runtime.js';
 
+export const REPOSITORY_KNOWLEDGE_FORMAT=2;
 export const repositoryKnowledgePrefix='pensieve-repository:';
-export interface RepositoryKnowledge {session:string;revision:string;ids:string[];publishedAt:string;indexing:'pending'}
+export interface RepositoryKnowledge {formatVersion?:number;session:string;revision:string;ids:string[];publishedAt:string;indexing:'pending'}
 const hash=(text:string)=>createHash('sha256').update(text).digest('hex');
 
 /** Version-bound, read-only export of the pinned MEX graph's schema-v4 contract.
  * Source excerpts come exclusively from the validated snapshot, never graph paths.
  */
 export function repositoryKnowledge(root:string,snapshot:SourceSnapshot,repository:ConnectedRepository,publicationId:string):Memory[]{
+ if(!snapshot.files.some(f=>semanticSource(f.path)))return packedRepositoryKnowledge(undefined,snapshot,repository,publicationId);
  const db=new DatabaseSync(join(root,'.mex','graph.db'),{readOnly:true});
  try{
   if(Number(db.prepare('SELECT MAX(version) AS version FROM schema_versions').get()?.version)!==4)throw Error('Unsupported MEX graph schema');
   if(Number(db.prepare("SELECT COUNT(*) AS count FROM files WHERE parse_status <> 'ok'").get()?.count)>0)throw Error('Incomplete graph extraction; keep the prior publication and fix source diagnostics');
+  const extracted=new Set(db.prepare("SELECT path FROM files WHERE parse_status='ok'").all().map(row=>String(row.path)));
+  if(snapshot.files.some(f=>semanticSource(f.path)&&!extracted.has(f.path)))throw Error('Incomplete graph coverage; keep the prior publication');
   const nodes=db.prepare("SELECT id,kind,name,qualified_name,file_path,start_line,end_line,signature,docstring FROM nodes WHERE kind NOT IN ('parameter','import') ORDER BY file_path,start_line,id LIMIT 4001").all();
-  if(nodes.length>4000)return packedRepositoryKnowledge(db,snapshot,repository,publicationId);
+  if(nodes.length>4000||snapshot.coverage||snapshot.files.some(f=>!semanticSource(f.path)))return packedRepositoryKnowledge(db,snapshot,repository,publicationId);
   const sources=new Map(snapshot.files.map(f=>[f.path,Buffer.from(f.content,'base64').toString('utf8').split('\n')]));
   const edges=db.prepare('SELECT e.kind,e.confidence,e.resolution_method,n.qualified_name,n.file_path FROM edges e JOIN nodes n ON n.id=e.target WHERE e.source=? ORDER BY e.kind,n.file_path,n.qualified_name LIMIT 21');
   return nodes.map(node=>{

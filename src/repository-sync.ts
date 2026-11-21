@@ -5,8 +5,8 @@ import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {MexRuntime} from './mex-runtime.js';
-import {repositoryKnowledge} from './repository-knowledge.js';
-import {unpackSources,validateSnapshot,type SourceFile} from './repository-artifacts.js';
+import {repositoryKnowledge,REPOSITORY_KNOWLEDGE_FORMAT} from './repository-knowledge.js';
+import {unpackSources,validateSnapshot,semanticSource,citedTextSource,type RepositoryCoverage,type SourceFile} from './repository-artifacts.js';
 import type {ConnectedRepository} from './repository-service.js';
 import type {TeamClient} from './team-client.js';
 const execute=promisify(execFile);
@@ -25,19 +25,21 @@ export async function committedRepositorySnapshot(path:string){
  const git=async(args:string[],maxBuffer=4000000)=>(await execute('git',['--no-pager','-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null',...args],{cwd,encoding:'utf8',timeout:30000,maxBuffer,env:{PATH:process.env.PATH,HOME:cwd,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_OPTIONAL_LOCKS:'0',GIT_NO_REPLACE_OBJECTS:'1'}})).stdout;
  const revision=(await git(['rev-parse','--verify','HEAD^{commit}'])).trim();
  const entries=(await git(['ls-tree','-r','-z','--full-tree',revision])).split('\0').filter(Boolean);
- const files:SourceFile[]=[];let bytes=0;
+ const files:SourceFile[]=[];let bytes=0;const coverage:RepositoryCoverage={tracked:entries.length,semantic:0,citedText:0,skipped:[]};
  for(const entry of entries){
-  const match=/^100(?:644|755) blob ([a-f0-9]+)\t(.+)$/s.exec(entry);if(!match)continue;
+  const match=/^100(?:644|755) blob ([a-f0-9]+)\t(.+)$/s.exec(entry);if(!match){coverage.skipped.push({path:entry.slice(entry.indexOf('\t')+1),reason:'non-file'});continue;}
   const [,oid,file]=match;
-  if(!/\.(?:[cm]?[jt]sx?|py|rs|cs)$/i.test(file)||file.split('/').some(p=>p.startsWith('.')||['node_modules','vendor','dist','build','coverage'].includes(p)))continue;
+  if(file.split('/').some(p=>p.startsWith('.')||['node_modules','vendor','dist','build','coverage'].includes(p))){coverage.skipped.push({path:file,reason:'excluded-directory'});continue;}
+  if(!semanticSource(file)&&!citedTextSource(file)){coverage.skipped.push({path:file,reason:'unsupported-extension'});continue;}
   const size=Number((await git(['cat-file','-s',oid])).trim());
   if(size>1000000)throw Error('Source file exceeds 1 MB extraction limit');
   bytes+=size;if(bytes>25000000||files.length>=5000)throw Error('Repository exceeds extraction limits');
   const content=Buffer.from(await git(['cat-file','blob',oid],1100000));
   if(content.includes(0))throw Error('Binary source is unsupported');
+  if(semanticSource(file))coverage.semantic++;else coverage.citedText++;
   files.push({path:file,content:content.toString('base64'),sha256:createHash('sha256').update(content).digest('hex')});
  }
- return validateSnapshot({version:1,revision,files});
+ return {...validateSnapshot({version:1,revision,files}),coverage};
 }
 export async function syncRepository(client:Pick<TeamClient,'request'>,repositoryId:string,path:string|undefined,engine=new MexRuntime()){
  const repo=await client.request<ConnectedRepository>('repositories/get',{repositoryId});
@@ -53,12 +55,16 @@ export async function syncRepository(client:Pick<TeamClient,'request'>,repositor
   }
   if(!input)throw Error('Local repository path required');
   const snapshot=await committedRepositorySnapshot(input);
-  if(repo.knowledge?.revision===snapshot.revision)return {published:true,alreadyCurrent:true,repositoryId:repo.id,revision:snapshot.revision};
-  const root=join(work,'repository');await mkdir(root);await unpackSources(root,snapshot);
-  if(snapshot.files.length)await engine.run(root,join(work,'state'),{operation:'build'});
-  const publication=await client.request<{publicationId:string;repository:ConnectedRepository}>('repositories/begin-publication',{repositoryId,revision:snapshot.revision});
-  const memories=snapshot.files.length?repositoryKnowledge(root,snapshot,repo,publication.publicationId):[];
-  for(let offset=0;offset<memories.length;offset+=16)await retryPublication(()=>client.request('repositories/append-publication',{publicationId:publication.publicationId,memories:memories.slice(offset,offset+16)}));
-  return await retryPublication(()=>client.request('repositories/finish-publication',{publicationId:publication.publicationId}));
+  if(repo.knowledge?.revision===snapshot.revision&&repo.knowledge.formatVersion===REPOSITORY_KNOWLEDGE_FORMAT)return {published:true,alreadyCurrent:true,repositoryId:repo.id,revision:snapshot.revision};
+  const root=join(work,'repository');await mkdir(root);const semanticSnapshot={...snapshot,files:snapshot.files.filter(f=>semanticSource(f.path))};await unpackSources(root,semanticSnapshot);
+  if(semanticSnapshot.files.length)await engine.run(root,join(work,'state'),{operation:'build'});
+  const publication=await client.request<{publicationId:string;repository:ConnectedRepository}>('repositories/begin-publication',{repositoryId,revision:snapshot.revision,formatVersion:REPOSITORY_KNOWLEDGE_FORMAT});
+  const memories=(snapshot.files.length||snapshot.coverage.tracked)?repositoryKnowledge(root,snapshot,repo,publication.publicationId):[];
+  for(let offset=0;offset<memories.length;offset+=16){
+   // Leave room for ordinary requests beneath the hosted IP request budget.
+   if(offset)await new Promise(resolve=>setTimeout(resolve,1500));
+   await retryPublication(()=>client.request('repositories/append-publication',{publicationId:publication.publicationId,memories:memories.slice(offset,offset+16)}));
+  }
+  const receipt=await retryPublication(()=>client.request<Record<string,unknown>>('repositories/finish-publication',{publicationId:publication.publicationId}));return {...receipt,coverage:snapshot.coverage};
  }finally{await rm(work,{recursive:true,force:true});}
 }

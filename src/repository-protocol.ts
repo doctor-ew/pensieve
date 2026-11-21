@@ -7,7 +7,7 @@ const source=z.discriminatedUnion('kind',[z.object({kind:z.literal('upload')}),z
 const create=z.object({poolId:uuid,name:z.string().min(1).max(160),source,autoRefresh:z.boolean()});
 export async function repositoryRequest(service:RepositoryService,actor:string,action:string,value:unknown){
  switch(action){
-  case 'begin-publication':{const i=z.object({repositoryId:uuid,revision:z.string().regex(/^[a-f0-9]{40,64}$/)}).parse(value);return service.publications.begin(actor,i.repositoryId,i.revision);}
+  case 'begin-publication':{const i=z.object({repositoryId:uuid,revision:z.string().regex(/^[a-f0-9]{40,64}$/),formatVersion:z.union([z.literal(1),z.literal(2)]).optional()}).parse(value);return service.publications.begin(actor,i.repositoryId,i.revision,i.formatVersion);}
   case 'append-publication':{const i=z.object({publicationId:uuid,memories:z.array(z.unknown()).min(1).max(16)}).parse(value);return service.publications.append(actor,i.publicationId,i.memories);}
   case 'finish-publication':{const i=z.object({publicationId:uuid}).parse(value);return service.publications.finish(actor,i.publicationId);}
 

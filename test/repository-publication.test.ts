@@ -32,7 +32,7 @@ test('real MEX producer publishes over HTTP; an independent consumer recalls onl
   const commit=async()=>{await run('git',['add','.'],{cwd:source});await run('git',['-c','user.name=Fixture','-c','user.email=fixture@example.com','commit','-m','fixture'],{cwd:source});};
   await writeFile(join(source,'math.ts'),'export function double(n:number){return n*2;}\n');await writeFile(join(source,'main.ts'),"import {double} from './math.js'; export function calculate(n:number){return double(n);}\n");await commit();
   const receipt=await syncRepository(client,repo.id,source) as {published:boolean;indexing:string};assert.equal(receipt.published,true);assert.equal(receipt.indexing,'complete');
-  const hits=await consumer.search(pool.id,'double',8);assert.ok(hits.length);assert.match(hits.map(h=>h.text).join('\n'),/calls:.*double/);assert.ok(hits.every(h=>h.citations?.[0].includes('rev=')));assert.ok(!JSON.stringify(hits).includes(home));
+  const hits=await consumer.search(pool.id,'double',8);assert.ok(hits.length);assert.match(hits.map(h=>h.text).join('\n'),/calls.*double/);assert.ok(hits.every(h=>h.citations?.[0].includes('rev=')));assert.ok(!JSON.stringify(hits).includes(home));
   const original=(await service.authorized(reader.user.id,repo.id)).value.knowledge!;
   // A fresh producer stages a replacement. Existing readers retain the published snapshot.
   const staged=await service.publications.begin(owner.user.id,repo.id,'b'.repeat(40));
