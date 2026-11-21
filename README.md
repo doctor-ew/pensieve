@@ -6,6 +6,10 @@ The production app is **https://pensieve.doctorew.com**. Use **[Connect your AI]
 
 AWS uses Lambda, DynamoDB, S3 snapshots, S3 Vectors, Cognito, SES and CloudFront. Infrastructure is Terraform-managed. The owner admin portal and guided setup are deployed; unfinished admin features and verification limits are recorded in [the deployment receipt](docs/admin-oversight/DEPLOY.md). Earlier local/Railway/PostgreSQL guides below describe those supported modes, not the current production architecture.
 
+**[Pensieve Repository Knowledge](docs/REPOSITORY-SYNC.md)** makes committed code
+and documents searchable by connected AI agents. MEX powers semantic code analysis;
+Pensieve adds shared storage, revision citations, automatic updates, and cited
+Markdown/Swift source coverage.
 
 **Pick up the thread.** Session memory from Doctor Ew’s Laboratory.
 
