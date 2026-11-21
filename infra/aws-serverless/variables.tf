@@ -67,3 +67,20 @@ variable "budget_emails" {
     error_message = "Provide at least one and no more than ten notification addresses."
   }
 }
+
+variable "billing_mode" {
+  type    = string
+  default = "PROVISIONED"
+  validation {
+    condition     = contains(["PROVISIONED", "PAY_PER_REQUEST"], var.billing_mode)
+    error_message = "Use PROVISIONED or PAY_PER_REQUEST."
+  }
+}
+variable "max_read_request_units" {
+  type    = number
+  default = 1000
+}
+variable "max_write_request_units" {
+  type    = number
+  default = 1000
+}

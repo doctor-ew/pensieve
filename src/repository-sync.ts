@@ -10,6 +10,15 @@ import {unpackSources,validateSnapshot,type SourceFile} from './repository-artif
 import type {ConnectedRepository} from './repository-service.js';
 import type {TeamClient} from './team-client.js';
 const execute=promisify(execFile);
+/** Retry only idempotent publication operations with identical evidence. */
+export async function retryPublication<T>(operation:()=>Promise<T>,wait:(ms:number)=>Promise<void>=ms=>new Promise(resolve=>setTimeout(resolve,ms))):Promise<T>{
+ for(let attempt=0;;attempt++){
+  try{return await operation();}catch(error){
+   if(attempt>=5||(error as {code?:string}).code==='SIGN_IN_REQUIRED'||[401,403,404].includes((error as {status?:number}).status??0))throw error;
+   await wait(Math.min(16000,1000*2**attempt));
+  }
+ }
+}
 /** Only committed, bounded source blobs are extracted; never run project setup. */
 export async function committedRepositorySnapshot(path:string){
  const cwd=resolve(path);
@@ -49,7 +58,7 @@ export async function syncRepository(client:Pick<TeamClient,'request'>,repositor
   if(snapshot.files.length)await engine.run(root,join(work,'state'),{operation:'build'});
   const publication=await client.request<{publicationId:string;repository:ConnectedRepository}>('repositories/begin-publication',{repositoryId,revision:snapshot.revision});
   const memories=snapshot.files.length?repositoryKnowledge(root,snapshot,repo,publication.publicationId):[];
-  for(let offset=0;offset<memories.length;offset+=16)await client.request('repositories/append-publication',{publicationId:publication.publicationId,memories:memories.slice(offset,offset+16)});
-  return await client.request('repositories/finish-publication',{publicationId:publication.publicationId});
+  for(let offset=0;offset<memories.length;offset+=16)await retryPublication(()=>client.request('repositories/append-publication',{publicationId:publication.publicationId,memories:memories.slice(offset,offset+16)}));
+  return await retryPublication(()=>client.request('repositories/finish-publication',{publicationId:publication.publicationId}));
  }finally{await rm(work,{recursive:true,force:true});}
 }

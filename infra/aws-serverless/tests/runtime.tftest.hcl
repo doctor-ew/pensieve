@@ -156,3 +156,14 @@ run "AC11_live_edge_host_guard" {
     error_message = "Host guard must run before any origin forwarding."
   }
 }
+
+run "bounded_on_demand_repository_intake" {
+  command = plan
+  variables {
+    billing_mode = "PAY_PER_REQUEST"
+  }
+  assert {
+    condition     = aws_dynamodb_table.app.billing_mode == "PAY_PER_REQUEST" && aws_dynamodb_table.app.on_demand_throughput[0].max_write_request_units == 1000 && aws_dynamodb_table.app.deletion_protection_enabled
+    error_message = "Burst intake must retain explicit throughput bounds and deletion protection."
+  }
+}
