@@ -7,8 +7,8 @@ import {Store} from './store.js';
 import {makeMemory,readSession} from './sessions.js';
 import {parsePolicyToml,resolvePolicy,type CapturePolicy} from './policy.js';
 import {readBundle,writeBundle} from './sharing.js';
-export interface TeamOptions {name?:string;'no-browser'?:boolean;home?:string;pool?:string;project?:string;session?:string;config?:string;ids?:string;output?:string;limit?:string;raw?:boolean;citation?:string;ticket?:string;interval?:string}
-export const teamCommands=['connect','connection-status','disconnect','team-pools','team-create','save','recall','sync','team-import','team-export','team-index','watch-session'];
+export interface TeamOptions {repo?:string;branch?:string;'auto-refresh'?:boolean;name?:string;'no-browser'?:boolean;home?:string;pool?:string;project?:string;session?:string;config?:string;ids?:string;output?:string;limit?:string;raw?:boolean;citation?:string;ticket?:string;interval?:string}
+export const teamCommands=['repo-connect','repo-watch','repo-sync','connected-repositories','connect','connection-status','disconnect','team-pools','team-create','save','recall','sync','team-import','team-export','team-index','watch-session'];
 const need=(v:string|undefined,n:string)=>{if(!v)throw Error(`${n} required`);return v;};
 export async function connectedClient(home:string){
   const agent=await readAgentConnection(home);
@@ -94,7 +94,16 @@ export async function runTeamCommand(command:string,arg:string|undefined,extra:s
   const client=await connectedClient(home);
   if(command==='team-pools'){out(await client.pools());return;}
   if(command==='team-create'){if(extra!==undefined&&!['private','shared'].includes(extra))throw Error('Visibility must be private or shared');out(await client.createPool(need(arg,'Pool name'),extra==='shared'?'shared':'private'));return;}
+  if(command==='repo-watch'){
+    const repositoryId=need(options.repo,'--repo'),interval=Number(options.interval??60000);if(!Number.isInteger(interval)||interval<30000||interval>3600000)throw Error('Interval must be 30000..3600000 ms');
+    const {syncRepository}=await import('./repository-sync.js');let stopped=false;const stop=()=>{stopped=true;};process.once('SIGINT',stop);process.once('SIGTERM',stop);
+    try{while(!stopped){const repo=await client.request<{autoRefresh:boolean}>('repositories/get',{repositoryId});if(!repo.autoRefresh)throw Error('Automatic refresh is not enabled for this repository');try{out(await syncRepository(client,repositoryId,arg));}catch{out({repositoryId,error:'Synchronization failed; the last successful snapshot is retained. Check access and source limits.'});}if(!stopped)await new Promise<void>(resolve=>{const timer=setTimeout(done,interval);function done(){clearTimeout(timer);process.off('SIGINT',done);process.off('SIGTERM',done);resolve();}process.once('SIGINT',done);process.once('SIGTERM',done);});}}finally{process.off('SIGINT',stop);process.off('SIGTERM',stop);}return;
+  }
+  if(command==='repo-sync'){const {syncRepository}=await import('./repository-sync.js');out(await syncRepository(client,need(options.repo,'--repo'),arg));return;}
   const pool=need(options.pool,'--pool');
+  if(command==='repo-connect'){out(await client.request('repositories/connect',{poolId:pool,name:need(arg,'Repository name'),source:options.project?{kind:'git',url:options.project,branch:need(options.branch,'--branch')}:{kind:'upload'},autoRefresh:!!options['auto-refresh']}));return;}
+  if(command==='connected-repositories'){out(await client.request('repositories/list',{poolId:pool,...(arg?{cursor:arg}:{})}));return;}
+
   if(command==='team-index'){out(await client.index(pool));return;}
   if(command==='recall'){out(await client.search(pool,need(arg,'Query'),Number(options.limit??8)));return;}
   if(command==='team-export'){const ids=need(options.ids,'--ids').split(',');const bundle=await client.export(pool,ids);await writeBundle(need(options.output??arg,'Output path'),bundle);out({exported:bundle.memories.length});return;}

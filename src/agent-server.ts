@@ -1,3 +1,5 @@
+import {repositoryRequest,registerRepositoryTools} from './repository-protocol.js';
+import type {RepositoryService} from './repository-service.js';
 import express, { type Request, type Response, type Express } from 'express';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -15,7 +17,7 @@ import {agentOperation} from './agent-operations.js';
 
 const context = { repository:z.string().max(4096).optional(),conversation:z.string().max(4096).optional() };
 const result = (value: unknown) => ({content:[{type:'text' as const,text:JSON.stringify(value)}]});
-export function createAgentServer(store: TeamRepository, actorId: string, provider?: EmbeddingProvider,connectionOperations=false): McpServer {
+export function createAgentServer(store: TeamRepository, actorId: string, provider?: EmbeddingProvider,connectionOperations=false,repositories?:RepositoryService): McpServer {
   const server = new McpServer({name:'pensieve',version:'0.2.0'});
   const protect = <T>(fn: () => T|Promise<T>) => async () => { try { await store.getUser(actorId); return result(await fn()); } catch { return {...result({error:'Operation denied or unavailable; check pool access and capture settings'}),isError:true}; } };
   server.registerTool('list_pools',{description:'List only pools authorized for the signed-in creator.',inputSchema:{}},protect(()=>store.listPools(actorId)));
@@ -41,7 +43,8 @@ export function createAgentServer(store: TeamRepository, actorId: string, provid
     return store.search(actorId,input.poolId,input.query,provider,input.limit);
   })());
   server.registerTool('prepare_share',{description:'Prepare a selected portable bundle for review. Does not send mail or publish invitations. Excludes every unselected memory.',inputSchema:{poolId:z.string().max(128),ids:z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(1000)}},async input => protect(()=>store.exportBundle(actorId,input.poolId,input.ids))());
-  if(connectionOperations)server.registerTool('connection_request',{description:'Authenticated Pensieve CLI operations: account, pools, selected memory import/export, policy and search. Only the current actor and authorized pools; never arbitrary HTTP requests.',inputSchema:{path:z.string().min(1).max(2000),body:z.unknown().optional()}},async input=>protect(()=>agentOperation(store,actorId,input.path,input.body,provider))());
+  if(connectionOperations)server.registerTool('connection_request',{description:'Authenticated Pensieve CLI operations: account, pools, selected memory import/export, policy and search. Only the current actor and authorized pools; never arbitrary HTTP requests.',inputSchema:{path:z.string().min(1).max(2000),body:z.unknown().optional()}},async input=>protect<unknown>(()=>repositories&&input.path.startsWith('repositories/')?repositoryRequest(repositories,actorId,input.path.slice(13),input.body):agentOperation(store,actorId,input.path,input.body,provider))());
+  if(repositories)registerRepositoryTools(server,(action,input)=>repositoryRequest(repositories,actorId,action,input));
   return server;
 }
 export async function connectStdio(store: TeamRepository, personalToken: string, provider?: EmbeddingProvider) {
@@ -49,7 +52,7 @@ export async function connectStdio(store: TeamRepository, personalToken: string,
   await server.connect(new StdioServerTransport()); return server;
 }
 export const isConnectorPath = (path: string) => ['/mcp','/authorize','/token','/register','/revoke','/connector/consent','/.well-known/oauth-authorization-server','/.well-known/oauth-protected-resource/mcp'].includes(path);
-export interface ConnectorOptions { publicUrl:string; statePath:string; sessionUser?:(cookieHeader:string|undefined)=>Promise<TeamUser|undefined>; loginPath?:string; storage?:ConnectorStorage; provider?:EmbeddingProvider; now?:()=>number }
+export interface ConnectorOptions { repositories?:RepositoryService; publicUrl:string; statePath:string; sessionUser?:(cookieHeader:string|undefined)=>Promise<TeamUser|undefined>; loginPath?:string; storage?:ConnectorStorage; provider?:EmbeddingProvider; now?:()=>number }
 export function createConnectorApp(store:TeamRepository,options:ConnectorOptions): {app:Express;auth:ConnectorAuth;close:()=>void} {
   if(options.loginPath&&options.loginPath!=='/auth/login')throw Error('Use the first-party login route');
   const publicUrl=new URL(options.publicUrl); const auth=new ConnectorAuth(store,publicUrl,options.statePath,options.now,options.storage,{sessionUser:options.sessionUser,loginPath:options.loginPath});
@@ -89,7 +92,7 @@ export function createConnectorApp(store:TeamRepository,options:ConnectorOptions
       if(!identity.scopes.includes('memories')){res.status(403).json({error:'Insufficient scope'});return;}
       if (req.headers['mcp-session-id']) {res.status(400).json({error:'Stateless connector does not accept sessions'});return;}
       if(req.method!=='POST'){res.status(405).setHeader('Allow','POST');res.end();return;}
-      const server=createAgentServer(store,identity.extra!.actorId as string,options.provider,true);
+      const server=createAgentServer(store,identity.extra!.actorId as string,options.provider,true,options.repositories);
       const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
       res.on('close',()=>{void transport.close();void server.close();});
       await server.connect(transport);

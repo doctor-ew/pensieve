@@ -9,6 +9,8 @@ export interface ShareSummary {id:string;title:string;recipients:string[];expire
 export interface SharePage {shares:ShareSummary[];nextCursor?:string}
 export interface TeamRepository {
  readonly sourceServer:string;
+ filterSearchCandidates?:(pool:string,memories:Memory[])=>Promise<Memory[]>;
+ indexedMemoryCount?(actor:string,pool:string,ids:string[],model:string):Awaitable<number>;
  readonly indexingMode?:'queued';
  close():Awaitable<void>;
  createUser(name:string):Awaitable<{user:TeamUser;token:string}>;

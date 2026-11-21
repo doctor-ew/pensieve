@@ -20,14 +20,17 @@
     "docs/TEAM-SETUP.md",
     "docs/pensieve-platform/manual-delivery/CREATOR-GUIDE.md",
     "migrations",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "runtime/mex/package.json",
+    "runtime/mex/package-lock.json"
   ],
   "scripts": {
     "build": "tsc",
     "check-types": "tsc --noEmit",
     "dev": "tsx src/cli.ts",
     "test": "tsx --test test/*.test.ts",
-    "prepack": "pnpm build"
+    "prepack": "pnpm build",
+    "setup:mex": "npm ci --prefix runtime/mex --ignore-scripts --no-audit --no-fund"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",

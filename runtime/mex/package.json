@@ -1,0 +1,7 @@
+{
+  "name": "pensieve-mex-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pinned MEX execution environment for Pensieve repository jobs",
+  "dependencies": { "mex-agent": "0.9.0-beta.1.1" }
+}

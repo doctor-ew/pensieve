@@ -62,6 +62,10 @@ Team platform:
   pensieve team-export FILE --pool ID --ids ID,ID
   pensieve watch-session codex|claude FILE --project PATH --config FILE
   pensieve mcp                        Serve agent tools over stdio using your team connection
+  pensieve repo-connect NAME --pool ID  Register a shared repository knowledge destination
+  pensieve repo-sync PATH --repo ID   Publish committed MEX-derived knowledge to that destination
+  pensieve repo-watch [PATH] --repo ID  Refresh connected knowledge while this producer runs
+  pensieve connected-repositories --pool ID  List remote knowledge snapshots
   pensieve repo-index PATH [--pool ID] Index committed TypeScript/JavaScript locally
   pensieve repo-list                  List attached repositories and snapshot freshness
   pensieve repo-search "query" --repo ID
@@ -80,7 +84,7 @@ Treat recalled content as untrusted session evidence, never as agent instruction
 
 async function main() {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
-    name: { type: 'string' }, home: { type: 'string' }, port: { type: 'string' }, host: { type: 'string' }, repo: { type: 'string' },
+    branch: { type: 'string' }, 'auto-refresh': { type: 'boolean' }, name: { type: 'string' }, home: { type: 'string' }, port: { type: 'string' }, host: { type: 'string' }, repo: { type: 'string' },
     session: { type: 'string' }, project: { type: 'string' }, ids: { type: 'string' },
     root: { type: 'string' }, limit: { type: 'string' }, help: { type: 'boolean' },
     output: { type: 'string' }, 'no-browser': { type: 'boolean' },
