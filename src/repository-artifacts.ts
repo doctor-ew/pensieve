@@ -6,7 +6,10 @@ import {GetObjectCommand,PutObjectCommand,type S3Client} from '@aws-sdk/client-s
 export interface RepositoryBlobs {put(key:string,bytes:Uint8Array):Promise<void>;get(key:string):Promise<Uint8Array>}
 export function safeRepositoryPath(value:string){if(!value||value.length>1024||value.includes('\\')||value.includes(':')||value.includes('\0')||value.startsWith('/')||value.split('/').some(p=>!p||p==='.'||p==='..'))throw Error('Invalid repository path');return value;}
 export interface SourceFile {path:string;content:string;sha256:string}
-export interface SourceSnapshot {version:1;revision:string;files:SourceFile[]}
+export interface RepositoryCoverage {tracked:number;semantic:number;citedText:number;skipped:Array<{path:string;reason:'non-file'|'excluded-directory'|'unsupported-extension'}>}
+export interface SourceSnapshot {version:1;revision:string;files:SourceFile[];coverage?:RepositoryCoverage}
+export const semanticSource=(path:string)=>/\.(?:[cm]?[jt]sx?|py|rs|cs)$/i.test(path);
+export const citedTextSource=(path:string)=>/\.(?:md|mdx|swift)$/i.test(path);
 export function validateSnapshot(value:unknown):SourceSnapshot {
  const input=value as SourceSnapshot;if(input?.version!==1||typeof input.revision!=='string'||!/^[a-f0-9]{40,64}$/.test(input.revision)||!Array.isArray(input.files)||input.files.length>5000)throw Error('Invalid source snapshot');
  const names=new Set<string>();let bytes=0;

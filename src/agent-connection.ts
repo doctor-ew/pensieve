@@ -62,15 +62,27 @@ function parseTokens(value:Record<string,unknown>):Tokens{
   return value as unknown as Tokens;
 }
 const form=(fields:Record<string,string>):RequestInit=>({method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(fields)});
+interface RpcConnection {client:Client;ready:Promise<void>;active:number;idle?:ReturnType<typeof setTimeout>}
+const rpcConnections=new Map<string,RpcConnection>();
 async function rpc(url:string,token:string,path:string,body?:unknown):Promise<unknown>{
-  const client=new Client({name:'pensieve-local-agent',version:'1'});
+  const key=createHash('sha256').update(url+'\0'+token).digest('hex');
+  let connection=rpcConnections.get(key);
+  if(!connection){
+    const client=new Client({name:'pensieve-local-agent',version:'1'});
+    connection={client,active:0,ready:client.connect(new StreamableHTTPClientTransport(new URL('/mcp',url),{requestInit:{headers:{Authorization:'Bearer '+token},redirect:'error'}}),{timeout:20000})};
+    rpcConnections.set(key,connection);
+  }
+  const current=connection;clearTimeout(current.idle);current.active++;
   try{
-    await client.connect(new StreamableHTTPClientTransport(new URL('/mcp',url),{requestInit:{headers:{Authorization:'Bearer '+token},redirect:'error'}}),{timeout:20000});
-    const result=await client.callTool({name:'connection_request',arguments:{path,...(body===undefined?{}:{body})}},undefined,{timeout:30000});
+    try{await current.ready;}catch(error){rpcConnections.delete(key);await current.client.close();throw error;}
+    const result=await current.client.callTool({name:'connection_request',arguments:{path,...(body===undefined?{}:{body})}},undefined,{timeout:30000});
     if(result.isError)throw Error('Pensieve denied the operation; check pool access and capture policy');
     const content=result.content;if(!Array.isArray(content)||content[0]?.type!=='text'||typeof content[0]?.text!=='string')throw Error('Invalid Pensieve operation response');
     return JSON.parse(content[0].text);
-  }finally{await client.close();}
+  }finally{
+    current.active--;
+    if(!current.active){current.idle=setTimeout(()=>{if(rpcConnections.get(key)===current)rpcConnections.delete(key);void current.client.close();},30000);current.idle.unref();}
+  }
 }
 async function credential(home:string,expected:AgentConnection,rejected?:string):Promise<AgentConnection>{
   return locked(home,async()=>{

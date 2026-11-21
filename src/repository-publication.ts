@@ -4,15 +4,16 @@ import type {EmbeddingProvider,Memory} from './types.js';
 import {validateMemoryRecord} from './memory-record.js';
 import {repositoryKnowledgePrefix} from './repository-knowledge.js';
 
-interface Publication {id:string;repositoryId:string;actor:string;revision:string;expectedRepositoryVersion:number;ids:string[];expires:number;committed?:boolean}
+interface Publication {formatVersion?:number;id:string;repositoryId:string;actor:string;revision:string;expectedRepositoryVersion:number;ids:string[];expires:number;committed?:boolean}
 /** Receives derived evidence from a producer. Consumers only need Pensieve. */
 export class RepositoryPublication {
  constructor(private service:RepositoryService,private provider?:EmbeddingProvider){}
- async begin(actor:string,repositoryId:string,revision:string){
+ async begin(actor:string,repositoryId:string,revision:string,formatVersion=1){
+  if(![1,2].includes(formatVersion))throw Error('Unsupported knowledge format');
   const repo=await this.service.publicationAllowed(actor,repositoryId);
   if(!/^[a-f0-9]{40,64}$/.test(revision))throw Error('Committed source revision required');
   if(repo.value.lease&&(repo.value.lease.until>Date.now()))throw Error('Repository is busy');
-  const value:Publication={id:randomUUID(),repositoryId,actor,revision,expectedRepositoryVersion:repo.revision,ids:[],expires:Date.now()+3600000};
+  const value:Publication={formatVersion,id:randomUUID(),repositoryId,actor,revision,expectedRepositoryVersion:repo.revision,ids:[],expires:Date.now()+3600000};
   if(!await this.service.records.compareAndSet('publication:'+value.id,'publications:'+repositoryId,undefined,value))throw Error('Publication conflict');
   return {publicationId:value.id,repository:repo.value,revision};
  }
@@ -43,7 +44,7 @@ export class RepositoryPublication {
   const repo=await this.service.publicationAllowed(actor,publication.repositoryId);
   if(!publication.committed){
    if(repo.revision!==publication.expectedRepositoryVersion)throw Error('Repository changed; start a new publication');
-   const next:ConnectedRepository={...repo.value,sourceRevision:publication.revision,knowledge:{session:publication.id,revision:publication.revision,ids:publication.ids,publishedAt:new Date().toISOString(),indexing:'pending'}};
+   const next:ConnectedRepository={...repo.value,sourceRevision:publication.revision,knowledge:{formatVersion:publication.formatVersion??1,session:publication.id,revision:publication.revision,ids:publication.ids,publishedAt:new Date().toISOString(),indexing:'pending'}};
    // Remote producers do not supply a server-side graph artifact.
    delete next.sourceKey;delete next.artifactKey;delete next.indexedRevision;delete next.indexedAt;
    if(!await this.service.records.compareAndSetMany([
