@@ -1,4 +1,7 @@
-# Shared repository knowledge
+# Pensieve Repository Knowledge
+
+MEX powers semantic code analysis. Pensieve provides shared storage, retrieval,
+automatic updates, and cited document and Swift source coverage.
 
 Register each repository with `repo-connect`, then publish committed source using
 `repo-sync PATH --repo ID`. Run `repo-watch PATH --repo ID --interval 300000`

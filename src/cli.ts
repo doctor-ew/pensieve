@@ -63,7 +63,7 @@ Team platform:
   pensieve watch-session codex|claude FILE --project PATH --config FILE
   pensieve mcp                        Serve agent tools over stdio using your team connection
   pensieve repo-connect NAME --pool ID  Register a shared repository knowledge destination
-  pensieve repo-sync PATH --repo ID   Publish committed MEX-derived knowledge to that destination
+  pensieve repo-sync PATH --repo ID   Publish committed code and document knowledge to that destination
   pensieve repo-watch [PATH] --repo ID  Refresh connected knowledge while this producer runs
   pensieve connected-repositories --pool ID  List remote knowledge snapshots
   pensieve repo-index PATH [--pool ID] Index committed TypeScript/JavaScript locally
