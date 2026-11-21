@@ -18,5 +18,5 @@ test('AC8 SQLite registration throttles bursts and reclaims inactive capacity',a
 const connectionString=process.env.PENSIEVE_TEST_DATABASE_URL;
 test('AC8 PostgreSQL registration throttles bursts and preserves active clients',{skip:!connectionString},async()=>{
  const admin=new Pool({connectionString}),schema='admission_'+randomBytes(8).toString('hex');await admin.query(`CREATE SCHEMA ${schema}`);const pool=new Pool({connectionString,options:`-c search_path=${schema},public`});
- try{await pool.query(await readFile(new URL('../migrations/003-connector.sql',import.meta.url),'utf8'));await admission(new PgConnectorStorage(pool));}finally{await pool.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
+ try{for(const name of ['003-connector.sql','004-connector-refresh.sql'])await pool.query(await readFile(new URL('../migrations/'+name,import.meta.url),'utf8'));await admission(new PgConnectorStorage(pool));}finally{await pool.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
 });

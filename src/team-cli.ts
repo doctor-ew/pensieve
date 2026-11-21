@@ -1,3 +1,4 @@
+import {readAgentConnection,OAuthTeamClient,SignInRequired,beginBrowserConnection,connectionStatus,disconnectAgent} from './agent-connection.js';
 import {readFile,writeFile,mkdir,chmod} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {homedir} from 'node:os';
@@ -6,13 +7,19 @@ import {Store} from './store.js';
 import {makeMemory,readSession} from './sessions.js';
 import {parsePolicyToml,resolvePolicy,type CapturePolicy} from './policy.js';
 import {readBundle,writeBundle} from './sharing.js';
-export interface TeamOptions {home?:string;pool?:string;project?:string;session?:string;config?:string;ids?:string;output?:string;limit?:string;raw?:boolean;citation?:string;ticket?:string;interval?:string}
-export const teamCommands=['connect','team-pools','team-create','save','recall','sync','team-import','team-export','team-index','watch-session'];
+export interface TeamOptions {repo?:string;branch?:string;'auto-refresh'?:boolean;name?:string;'no-browser'?:boolean;home?:string;pool?:string;project?:string;session?:string;config?:string;ids?:string;output?:string;limit?:string;raw?:boolean;citation?:string;ticket?:string;interval?:string}
+export const teamCommands=['repo-connect','repo-watch','repo-sync','connected-repositories','connect','connection-status','disconnect','team-pools','team-create','save','recall','sync','team-import','team-export','team-index','watch-session'];
 const need=(v:string|undefined,n:string)=>{if(!v)throw Error(`${n} required`);return v;};
 export async function connectedClient(home:string){
+  const agent=await readAgentConnection(home);
+  if(agent&&!process.env.PENSIEVE_TEAM_TOKEN){
+    if(process.env.PENSIEVE_TEAM_URL&&new URL(process.env.PENSIEVE_TEAM_URL).origin!==agent.url)throw new SignInRequired('Changed server requires its own sign-in.');
+    return new OAuthTeamClient(home,agent);
+  }
   let saved:{url?:string;token?:string}={};
   try{saved=JSON.parse(await readFile(join(home,'team-connection.json'),'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw Error('Invalid saved team connection');}
   if(process.env.PENSIEVE_TEAM_URL && !process.env.PENSIEVE_TEAM_TOKEN && saved.url && new URL(process.env.PENSIEVE_TEAM_URL).origin!==new URL(saved.url).origin) throw Error('Changed server requires its own PENSIEVE_TEAM_TOKEN');
+  if(!process.env.PENSIEVE_TEAM_TOKEN&&!saved.token)throw new SignInRequired();
   return new TeamClient(need(process.env.PENSIEVE_TEAM_URL??saved.url,'PENSIEVE_TEAM_URL'),need(process.env.PENSIEVE_TEAM_TOKEN??saved.token,'PENSIEVE_TEAM_TOKEN'));
 }
 export async function localPolicy(options:TeamOptions):Promise<CapturePolicy>{
@@ -23,6 +30,13 @@ export async function runTeamCommand(command:string,arg:string|undefined,extra:s
   const home=options.home??join(homedir(),'.pensieve');
   const out=(value:unknown)=>process.stdout.write(JSON.stringify(value,null,2)+'\n');
   const context:CaptureContext={repository:options.project?resolve(options.project):undefined,conversation:options.session,...(options.config?{policyFile:resolve(options.config)}:{})};
+  if(command==='connection-status'){out(await connectionStatus(home));return;}
+  if(command==='disconnect'){out(await disconnectAgent(home));return;}
+  if(command==='connect'&&!process.env.PENSIEVE_TEAM_TOKEN){
+    const previous=await readAgentConnection(home);
+    const flow=await beginBrowserConnection(home,arg??process.env.PENSIEVE_TEAM_URL??previous?.url??'https://pensieve.doctorew.com',options.name,{openBrowser:!options['no-browser']});
+    out({signInUrl:flow.url});out(await flow.done);return;
+  }
   if(command==='connect'){
     const client=new TeamClient(need(arg??process.env.PENSIEVE_TEAM_URL,'Server URL'),need(process.env.PENSIEVE_TEAM_TOKEN,'PENSIEVE_TEAM_TOKEN'));
     const user=await client.me();await mkdir(home,{recursive:true,mode:0o700});const file=join(home,'team-connection.json');
@@ -34,7 +48,7 @@ export async function runTeamCommand(command:string,arg:string|undefined,extra:s
     if(policy.destination==='off'){out({saved:false,reason:'Capture disabled'});return;}
     const memory=sourceMemory??{...makeMemory({text,source:'manual',session:options.session??'capture',role:'user',timestamp:new Date().toISOString(),locator:'supplied-distillation',project:context.repository??''}),kind:options.raw?'raw' as const:'distilled' as const,...(options.citation?{citations:[options.citation]}:{}),...(options.ticket?{ticket:options.ticket}:{})};
     if(policy.destination==='private'){const store=new Store(join(home,'memory.sqlite'));try{out({saved:store.add([memory]),destination:'private'});}finally{store.close();}return;}
-    const client=await connectedClient(home);const queue=new ContributionQueue(home,client.binding);
+    const client=await connectedClient(home);const queue=new ContributionQueue(home,client.binding,client.legacyBindings);
     try{queue.enqueue(memory,policy,captureContext);out(await queue.flush((pool,memories,ctx,provenance)=>client.putMemories(pool,memories,provenance,ctx),async(pool,ctx)=>{
       const local=await localPolicy({...options,config:ctx.policyFile??options.config});if(local.destination!=='shared'||local.pool!==pool)return local;
       const remote=await client.policy(pool,ctx);return Object.keys(remote.policies).length?remote.effective:local;
@@ -49,7 +63,7 @@ export async function runTeamCommand(command:string,arg:string|undefined,extra:s
       try{out({imported:local.add(bundle.memories,bundle.provenance),destination:'private'});}finally{local.close();}
       return;
     }
-    const client=await connectedClient(home);const queue=new ContributionQueue(home,client.binding);
+    const client=await connectedClient(home);const queue=new ContributionQueue(home,client.binding,client.legacyBindings);
     try{
       for(const memory of bundle.memories)queue.enqueue(memory,policy,context,bundle.provenance?.filter(origin=>origin.memoryId===memory.id));
       out(await queue.flush((pool,memories,ctx,provenance)=>client.putMemories(pool,memories,provenance,ctx),async(pool,ctx)=>{
@@ -67,7 +81,7 @@ export async function runTeamCommand(command:string,arg:string|undefined,extra:s
     const seen=new Set<string>();let running=false;
     const ingest=async()=>{if(running)return;running=true;try{const policy=await localPolicy(options);if(!policy.autoSave||policy.destination==='off')return;const parsed=await readSession(path,arg);for(const m of parsed.memories){if(resolve(m.project||'/')!==project||seen.has(m.id))continue;await save(m.text,{...m,kind:'raw'});seen.add(m.id);}
       if(policy.destination==='shared'){
-        const client=await connectedClient(home);const queue=new ContributionQueue(home,client.binding);
+        const client=await connectedClient(home);const queue=new ContributionQueue(home,client.binding,client.legacyBindings);
         try{const result=await queue.flush((pool,memories,ctx,provenance)=>client.putMemories(pool,memories,provenance,ctx),async(pool,ctx)=>{
           const current=await localPolicy({...options,config:ctx.policyFile??options.config});if(current.destination!=='shared'||current.pool!==pool)return current;
           const remote=await client.policy(pool,ctx);return Object.keys(remote.policies).length?remote.effective:current;
@@ -80,12 +94,21 @@ export async function runTeamCommand(command:string,arg:string|undefined,extra:s
   const client=await connectedClient(home);
   if(command==='team-pools'){out(await client.pools());return;}
   if(command==='team-create'){if(extra!==undefined&&!['private','shared'].includes(extra))throw Error('Visibility must be private or shared');out(await client.createPool(need(arg,'Pool name'),extra==='shared'?'shared':'private'));return;}
+  if(command==='repo-watch'){
+    const repositoryId=need(options.repo,'--repo'),interval=Number(options.interval??60000);if(!Number.isInteger(interval)||interval<30000||interval>3600000)throw Error('Interval must be 30000..3600000 ms');
+    const {syncRepository}=await import('./repository-sync.js');let stopped=false;const stop=()=>{stopped=true;};process.once('SIGINT',stop);process.once('SIGTERM',stop);
+    try{while(!stopped){const repo=await client.request<{autoRefresh:boolean}>('repositories/get',{repositoryId});if(!repo.autoRefresh)throw Error('Automatic refresh is not enabled for this repository');try{out(await syncRepository(client,repositoryId,arg));}catch{out({repositoryId,error:'Synchronization failed; the last successful snapshot is retained. Check access and source limits.'});}if(!stopped)await new Promise<void>(resolve=>{const timer=setTimeout(done,interval);function done(){clearTimeout(timer);process.off('SIGINT',done);process.off('SIGTERM',done);resolve();}process.once('SIGINT',done);process.once('SIGTERM',done);});}}finally{process.off('SIGINT',stop);process.off('SIGTERM',stop);}return;
+  }
+  if(command==='repo-sync'){const {syncRepository}=await import('./repository-sync.js');out(await syncRepository(client,need(options.repo,'--repo'),arg));return;}
   const pool=need(options.pool,'--pool');
+  if(command==='repo-connect'){out(await client.request('repositories/connect',{poolId:pool,name:need(arg,'Repository name'),source:options.project?{kind:'git',url:options.project,branch:need(options.branch,'--branch')}:{kind:'upload'},autoRefresh:!!options['auto-refresh']}));return;}
+  if(command==='connected-repositories'){out(await client.request('repositories/list',{poolId:pool,...(arg?{cursor:arg}:{})}));return;}
+
   if(command==='team-index'){out(await client.index(pool));return;}
   if(command==='recall'){out(await client.search(pool,need(arg,'Query'),Number(options.limit??8)));return;}
   if(command==='team-export'){const ids=need(options.ids,'--ids').split(',');const bundle=await client.export(pool,ids);await writeBundle(need(options.output??arg,'Output path'),bundle);out({exported:bundle.memories.length});return;}
   if(command==='sync'){
-    const queue=new ContributionQueue(home,client.binding);
+    const queue=new ContributionQueue(home,client.binding,client.legacyBindings);
     try{out(await queue.flush((p,memories,ctx,provenance)=>client.putMemories(p,memories,provenance,ctx),async(p,ctx)=>{
       const local=await localPolicy({...options,config:ctx.policyFile??options.config});if(local.destination!=='shared'||local.pool!==p)return local;
       const remote=await client.policy(p,ctx);return Object.keys(remote.policies).length?remote.effective:local;

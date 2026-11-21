@@ -28,6 +28,7 @@ function canonical(value: unknown): string {
 export class TeamStore {
   private readonly db: DatabaseSync;
   readonly sourceServer: string;
+  filterSearchCandidates?:(pool:string,memories:Memory[])=>Promise<Memory[]>;
   constructor(path: string, private readonly vectorBackend?: VectorBackend) {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(path);
@@ -177,6 +178,10 @@ export class TeamStore {
   private vectorRows(pool: string,model: string) {
     return this.db.prepare('SELECT m.body,v.vector FROM team_memories m JOIN team_vectors v ON m.pool=v.pool AND m.id=v.id WHERE v.pool=? AND v.model=? AND v.backend=?').all(pool,model,this.vectorBackend?.identity ?? 'local') as {body:string;vector:string}[];
   }
+  indexedMemoryCount(actor:string,pool:string,ids:string[],model:string){
+    this.getPool(actor,pool);const selected=new Set(ids);
+    return this.vectorRows(pool,model).filter(r=>selected.has((JSON.parse(r.body) as Memory).id)).length;
+  }
   async index(actor: string,pool: string,provider: EmbeddingProvider): Promise<number> {
     this.writable(actor,pool); bounded(provider.identity,'model identity');
     const backend = this.vectorBackend?.identity ?? 'local'; const prior = this.vectorRows(pool,provider.identity);
@@ -207,7 +212,9 @@ export class TeamStore {
   async search(actor: string,pool: string,query: string,provider: EmbeddingProvider,limit=8): Promise<Hit[]> {
     this.getPool(actor,pool); bounded(query,'search query',10_000); bounded(provider.identity,'model identity');
     if (!Number.isInteger(limit) || limit<1 || limit>100) throw new Error('Limit must be between 1 and 100');
-    const rows = this.vectorRows(pool,provider.identity); if (!rows.length) throw new Error('No indexed memories for this model');
+    let rows = this.vectorRows(pool,provider.identity); if (!rows.length) throw new Error('No indexed memories for this model');
+    if(this.filterSearchCandidates){const allowed=new Set((await this.filterSearchCandidates(pool,rows.map(r=>JSON.parse(r.body) as Memory))).map(m=>m.id));rows=rows.filter(r=>allowed.has((JSON.parse(r.body) as Memory).id));}
+    if(!rows.length){this.getPool(actor,pool);return [];}
     const vectors = await provider.embed([query],'query'); this.getPool(actor,pool);
     if (!Array.isArray(vectors) || vectors.length !== 1) throw new Error('Embedding response count mismatch');
     const vector = vectors[0]; validateVector(vector);

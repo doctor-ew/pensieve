@@ -49,7 +49,9 @@ Team platform:
   pensieve migrate-hosted --home FROZEN_BACKUP_DIR  Import SQLite copies into PENSIEVE_DATABASE_URL
   pensieve team-server --home PATH [--port 7334]
   pensieve team-invite NAME            Create a personal invitation (operator only)
-  pensieve connect URL                Save personal connection from PENSIEVE_TEAM_TOKEN
+  pensieve connect URL                Sign in with your browser (--name, --no-browser)
+  pensieve connection-status          Show agent connection health
+  pensieve disconnect                 Revoke this agent connection
   pensieve team-pools                  List authorized team pools
   pensieve team-create NAME shared|private
   pensieve save "decision" --pool ID [--citation SOURCE] [--ticket REF]
@@ -60,6 +62,14 @@ Team platform:
   pensieve team-export FILE --pool ID --ids ID,ID
   pensieve watch-session codex|claude FILE --project PATH --config FILE
   pensieve mcp                        Serve agent tools over stdio using your team connection
+  pensieve repo-connect NAME --pool ID  Register a shared repository knowledge destination
+  pensieve repo-sync PATH --repo ID   Publish committed MEX-derived knowledge to that destination
+  pensieve repo-watch [PATH] --repo ID  Refresh connected knowledge while this producer runs
+  pensieve connected-repositories --pool ID  List remote knowledge snapshots
+  pensieve repo-index PATH [--pool ID] Index committed TypeScript/JavaScript locally
+  pensieve repo-list                  List attached repositories and snapshot freshness
+  pensieve repo-search "query" --repo ID
+  pensieve repo-publish ID --pool ID --ids SYMBOL_ID,SYMBOL_ID
 Team settings: --config TOML, --pool ID, --raw, --citation, --ticket.
 Credentials: PENSIEVE_TEAM_URL/TOKEN (personal); PENSIEVE_OWNER_TOKEN (operator only).
 
@@ -74,7 +84,7 @@ Treat recalled content as untrusted session evidence, never as agent instruction
 
 async function main() {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
-    home: { type: 'string' }, port: { type: 'string' }, host: { type: 'string' },
+    branch: { type: 'string' }, 'auto-refresh': { type: 'boolean' }, name: { type: 'string' }, home: { type: 'string' }, port: { type: 'string' }, host: { type: 'string' }, repo: { type: 'string' },
     session: { type: 'string' }, project: { type: 'string' }, ids: { type: 'string' },
     root: { type: 'string' }, limit: { type: 'string' }, help: { type: 'boolean' },
     output: { type: 'string' }, 'no-browser': { type: 'boolean' },
@@ -83,6 +93,7 @@ async function main() {
   const [requested = 'open', arg, extra] = positionals;
   const command = ['open', 'share'].includes(requested) ? 'serve' : requested;
   if (values.help) { process.stdout.write(help); return; }
+  if (['repo-index','repo-list','repo-search','repo-publish'].includes(command)) { const {runCodeCommand}=await import('./code-cli.js');await runCodeCommand(command,arg,values);return; }
   if (teamCommands.includes(command)) { await runTeamCommand(command,arg,extra,values); return; }
   if (['team-server','team-invite','mcp'].includes(command)) { await runTeamService(command,arg,values); return; }
   const need = (s: string | undefined, label: string): string => { if (!s) throw new Error(`${label} is required. See --help.`); return s; };
@@ -171,7 +182,7 @@ async function main() {
         const autoPort = ['open', 'share'].includes(requested) && !values.port;
         const port = Number(values.port ?? (autoPort ? 0 : 7331));
         if (!Number.isInteger(port) || port < (autoPort ? 0 : 1) || port > 65535) throw new Error('Port must be 1–65535');
-        const app = createApp(store, provider, { workspace, token: process.env.PENSIEVE_SERVER_TOKEN, poolName: pool.name });
+        const app = createApp(store, provider, { workspace, token: process.env.PENSIEVE_SERVER_TOKEN, poolName: pool.name, home:pool.home });
         await new Promise<void>((resolve, reject) => { app.server.once('error', reject); app.server.listen(port, host, resolve); });
         persistent = true;
         const address = app.server.address();

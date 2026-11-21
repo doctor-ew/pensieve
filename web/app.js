@@ -31,7 +31,45 @@ async function refresh() {
   const info = await api('status'); $('provider').textContent = info.provider;
   sharingReady = info.sharing; $('service-url').value = info.shareService;
   $('heading').textContent = 'Your memory pool';
+  $('repository-panel').hidden=!info.codeContext;
+  if(info.codeContext)await refreshRepositories();
 }
+const codeSelection=new Set();
+function resetCodeSelection(){codeSelection.clear();$('repository-results').replaceChildren();$('repository-publish').disabled=true;}
+async function refreshRepositories(selectedId=$('repository-choice').value){
+  const {repositories}=await api('repositories');$('repository-choice').replaceChildren();
+  if(!repositories.length){const option=document.createElement('option');option.value='';option.textContent='Index a repository first';$('repository-choice').append(option);}
+  for(const repo of repositories){const option=document.createElement('option');option.value=repo.id;option.textContent=`${repo.name} · ${repo.revision.slice(0,8)}${repo.stale?' · needs reindexing':''}${repo.uncommittedChanges?' · uncommitted edits excluded':''}`;option.selected=repo.id===selectedId;$('repository-choice').append(option);}
+}
+$('repository-index-form').onsubmit=action(async()=>{
+  const snapshot=await api('repositories/index',{path:$('repository-path').value,pool:$('repository-pool').value||undefined});resetCodeSelection();await refreshRepositories(snapshot.id);
+  $('repository-status').textContent=`Indexed ${snapshot.symbols} symbols in ${snapshot.files} files at ${snapshot.revision.slice(0,8)}. ${snapshot.skipped} entries excluded. Stored locally; nothing uploaded.`;status('Repository indexed locally.');
+});
+$('repository-choice').onchange=()=>{resetCodeSelection();$('repository-status').textContent='Search this repository to review its code.';};
+$('repository-search-form').onsubmit=action(async()=>{
+  const result=await api('repositories/search',{repositoryId:$('repository-choice').value,query:$('repository-query').value});resetCodeSelection();
+  $('repository-status').textContent=`${result.hits.length} results from ${result.repository.revision}.${result.repository.stale?' This snapshot is stale or unavailable; reindex before relying on it.':''}${result.repository.uncommittedChanges?' Uncommitted edits are excluded.':''}`;
+  for(const hit of result.hits){
+    const article=document.createElement('article');article.className='card';const label=document.createElement('label');
+    const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.onchange=()=>{checkbox.checked?codeSelection.add(hit.id):codeSelection.delete(hit.id);$('repository-publish').disabled=!codeSelection.size;};
+    label.append(checkbox,document.createTextNode(` ${hit.name} · ${hit.file}:${hit.startLine}-${hit.endLine}`));
+    const code=document.createElement('pre');code.textContent=hit.snippet;const citation=document.createElement('small');citation.textContent=hit.citation+(hit.truncated?' · Excerpt truncated':'');
+    const copy=document.createElement('button');copy.type='button';copy.className='quiet';copy.textContent='Copy citation';copy.onclick=action(async()=>{await navigator.clipboard.writeText(hit.citation);status('Code citation copied. Add it to a decision to link the reasoning to this snapshot.');});
+    article.append(label,code,citation,copy);$('repository-results').append(article);
+  }
+  status('Code results are historical source evidence.');
+});
+$('repository-load-pools').onclick=action(async()=>{
+  const {pools}=await api('repositories/pools');$('repository-pool').replaceChildren();
+  const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose a pool';$('repository-pool').append(placeholder);
+  for(const pool of pools){const option=document.createElement('option');option.value=pool.id;option.textContent=`${pool.name} · ${pool.visibility}`;$('repository-pool').append(option);}
+  status('Choose the pool whose members should receive the selected code.');
+});
+$('repository-publish').onclick=action(async()=>{
+  if(!$('repository-pool').value)throw Error('Choose a destination pool first');
+  const result=await api('repositories/publish',{repositoryId:$('repository-choice').value,pool:$('repository-pool').value,ids:[...codeSelection]});
+  $('repository-status').textContent=`Published ${result.ids.length} selected symbols to the chosen pool. ${result.indexing?.pending?'Semantic indexing needs a retry.':result.indexing?.queued?'Semantic indexing queued.':'Semantic indexing requested.'}`;status('Selected code published to Pensieve.');
+});
 function action(handler) { return async event => { event?.preventDefault(); try { status('Working…'); await handler(event); } catch (error) { status(error.message); } }; }
 $('refresh').onclick = action(async () => { await refresh(); status('All memories shown.'); });
 $('capture-form').onsubmit = action(async () => { await api('capture', { text: $('capture').value }); $('capture').value = ''; await refresh(); status('Saved privately. Build the vector index to enable recall.'); });

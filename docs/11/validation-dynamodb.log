@@ -1,0 +1,19 @@
+▶ DynamoDB refresh storage conformance
+  ✔ issuance and rotation roll back every record on a late write failure (5479.012833ms)
+  ✔ forced overlapping refresh has one winner and replay revokes the winner (3143.279167ms)
+  ✔ revocation wins before rotation commit and also invalidates an already rotated pair (6266.271709ms)
+  ✔ adapter-specific in-flight contention regression (3269.033458ms)
+  ✔ wrong client/resource/scope and unknown revocation preserve the owning family (6017.383458ms)
+  ✔ inactivity and access deadlines reject exactly at expiry (13523.792875ms)
+  ✔ cleanup retains clients until absolute expiry and capped expires_in rounds down (6770.610708ms)
+  ✔ hash-only state survives provider reconstruction; operation counts stay constant (22199.321708ms)
+✔ DynamoDB refresh storage conformance (88225.655625ms)
+✔ AC7 AWS connector consumes atomically and expires inactive registrations (2115.904708ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 90603.311792

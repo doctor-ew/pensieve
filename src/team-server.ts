@@ -1,3 +1,5 @@
+import {repositoryRequest} from './repository-protocol.js';
+import type {RepositoryService} from './repository-service.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { TeamAccessError } from './team-store.js';
@@ -22,6 +24,7 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   return value;
 }
 export interface TeamServerOptions {
+  repositories?:RepositoryService;
   ownerToken: string; publicUrl: string; maxMemoryBatch?:number; maintenance?:()=>Promise<boolean>; readerUrl?:string; openSignup?:boolean; access?:AccessVerifier; mailer?:SecureMailer; verification?:VerificationGuard; provider?: EmbeddingProvider; shareStore?: ShareRepository; delivery?:DeliveryRepository; sessionStore?:HostedSessions; cognito?:CognitoAuth;
   handleExtra?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
 }
@@ -67,6 +70,7 @@ export function createTeamServer(store: TeamRepository, options: TeamServerOptio
       if (!path.startsWith('/api/team/')) { reply(404, { error: 'Not found' }); return; }
       const user = await identityRoutes.team(req, res, url, accessIdentity);
       if (!user) return;
+      if(options.repositories&&req.method==='POST'&&path.startsWith('/api/team/repositories/')){reply(200,await repositoryRequest(options.repositories,user.id,path.slice('/api/team/repositories/'.length),await body(req)));return;}
       if (path === '/api/team/pools') {
         if (req.method === 'GET') { reply(200, { pools: (await store.listPools(user.id)) }); return; }
         if (req.method === 'POST') { const input = await body(req); reply(201, { pool: (await store.createPool(user.id, input.name as string, input.visibility as 'private' | 'shared')) }); return; }

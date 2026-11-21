@@ -19,3 +19,19 @@ test('embedding adapter bounds concurrency, validates dimensions, and preserves 
  const invalid=bedrockEmbeddings({send:async()=>({body:Buffer.from('{"embedding":[1]}')})} as unknown as BedrockRuntimeClient);
  await assert.rejects(invalid.embed(['text']),/dimension/);
 });
+test('repository vector queries restrict active snapshots and split large scopes below filter limits',async()=>{
+ const requests:QueryVectorsCommand['input'][]=[];
+ const session='a'.repeat(64);
+ const client={send:async(command:QueryVectorsCommand)=>{requests.push(command.input);return {distanceMetric:'cosine',vectors:[
+  {distance:0.1,metadata:{poolId:'p',model:'m',memoryId:'b'.repeat(64),revision:'r',knowledgeSession:'obsolete'}},
+  {distance:0.2,metadata:{poolId:'p',model:'m',memoryId:'c'.repeat(64),revision:'r',knowledgeSession:session}},
+  {distance:0.3,metadata:{poolId:'p',model:'m',memoryId:'d'.repeat(64),revision:'r'}}
+ ]};}} as unknown as S3VectorsClient;
+ const adapter=new AwsVectors(client,'bucket','index',2);
+ const sessions=[session,...Array.from({length:94},(_,i)=>i.toString(16).padStart(64,'0'))];
+ const result=await adapter.query({poolId:'p',model:'m',vector:[1,0],limit:8,knowledgeSessions:sessions});
+ assert.equal(requests.length,2);assert.deepEqual(result.map(r=>r.memoryId),['c'.repeat(64),'d'.repeat(64)]);
+ assert.match(JSON.stringify(requests[0].filter),/knowledgeSession/);
+ requests.length=0;await adapter.query({poolId:'p',model:'m',vector:[1,0],limit:8,knowledgeSessions:[]});
+ assert.deepEqual(requests[0].filter,{$and:[{poolId:{$eq:'p'}},{model:{$eq:'m'}},{knowledgeSession:{$exists:false}}]});
+});
