@@ -1,8 +1,13 @@
 # Pensieve team setup
 
+**Using the hosted AWS service? Start with [Hosted onboarding](ONBOARDING.md).**
+The operator instructions below describe an optional self-hosted invitation service,
+not the account setup required at pensieve.doctorew.com. CLI and agent sections apply
+to both when configured for the intended server.
+
 This delivery adds a separately runnable team service; it does not migrate or replace an existing private pool or Railway reader automatically. Node 22.13+ and pnpm are required. Install with `pnpm install --frozen-lockfile`, then `pnpm build`. The executable below is `node dist/cli.js`; an installed package exposes the same commands as `pensieve`. Sources: [CLI](../src/cli.ts), [service](../src/team-service.ts).
 
-## Operator setup
+## Optional self-hosted operator setup
 
 Choose a dedicated persistent data directory and set a random `PENSIEVE_OWNER_TOKEN` of at least 32 characters. This credential only creates/revokes creator accounts; do not give it to agents or ordinary users. Set `PENSIEVE_PUBLIC_URL` to the HTTPS origin, then run `node dist/cli.js team-server --home /path/to/team-data --host 0.0.0.0 --port 7334` behind a TLS reverse proxy that preserves the public Host header. Loopback development works with the default `http://127.0.0.1:7334` and no remote bind. `/health` is the health endpoint; supply the configured Host header when probing through a different address. Source: [service](../src/team-service.ts).
 
@@ -42,13 +47,13 @@ A `SIGN_IN_REQUIRED` error offers `connect_pensieve`. Open its returned link, ap
 The running stdio server reloads the connection before each call. Installing this software version may require one host reload; subsequent sign-in and renewal do not. Explicit `PENSIEVE_TEAM_TOKEN` host settings override OAuth and must be removed to adopt browser sign-in. Queues use the verified server/account identity. Legacy queue bindings are accepted only when both the old key and new grant prove the same account; unverifiable or other-account queues remain held. Source: [configuration](../src/team-cli.ts), [queue](../src/team-client.ts), [migration tests](../test/agent-connection.test.ts).
 
 
-After saving, call `index_memories` for that pool before semantic recall. Indexing requires writer access.
+After saving, call `index_memories` for that pool before semantic recall. Indexing requires writer access. On AWS it is asynchronous: confirm recall rather than treating a queued response as completion. Repeated requests during the recent-run cooldown succeed without starting another job. [AWS indexing](../src/aws-team-store.ts#L91).
 
 For a remote MCP-capable conversational host, the URL is `https://your-pensieve.example/mcp`. It uses OAuth authorization code with S256 PKCE, per-client/resource tokens, and a first-party consent page. On Cognito deployments, sign in through the browser and return to approve the named agent. The consent page shows the verified account. Legacy deployments without browser identity can still accept a personal invitation credential; never use an operator token. Dynamic registration accepts exact HTTPS or loopback redirect URIs. Access tokens expire after one hour. Clients that request refresh support receive rotating refresh tokens: renewal resets a seven-day inactivity limit, with a thirty-day absolute connection lifetime. Each refresh replaces both credentials; clients must serialize refresh requests. Reusing a consumed refresh token or revoking either credential disconnects the whole connection. Reconnect after inactivity, absolute expiry, replay revocation, or account revocation. Authorization-code-only clients still reconnect after their access token expires. Codes expire after five minutes. Live Claude conversational-app setup has not been verified in this delivery; supported host/account features still govern whether it can add a custom connector. Source: [OAuth implementation](../src/connector-auth.ts), [Claude official connector guide](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
 
 Conversational hosts may call `save_memory` when asked. This does **not** grant access to all historical chats, guarantee automatic saving at chat close, or persist content the host never sends. For unsupported apps, paste/upload supplied summaries or exports through the creator UI. Dots/Muse native integrations are not implemented.
 
-## Vectors and Azure
+## Optional self-hosted vectors and Azure
 
 By default indexing/search use local Ollama (`embeddinggemma`). Run Ollama and install the model on the server hosting the index. Local queries are exact cosine scans of model-specific vectors stored in SQLite. Capture, sharing and downloads do not require embeddings. Explicit opt-in `PENSIEVE_PROVIDER=openai` uses `OPENAI_API_KEY`; this sends indexed text and queries to the configured cloud provider. Source: [embeddings](../src/embeddings.ts).
 

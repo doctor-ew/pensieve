@@ -1,10 +1,14 @@
 # Create and share memories in the browser
 
-This guide describes the new team creator interface. Your operator must start the **team server** and send you a personal invitation. Existing recipient-only share links open a snapshot; they are not creator invitations. This implementation has been tested locally with synthetic data and has not been deployed to Railway by this delivery.
+For the deployed AWS service, start with [Hosted onboarding](../../ONBOARDING.md).
+Sign in at [Pensieve](https://pensieve.doctorew.com) using your own account. Personal
+invitation tokens are a legacy/self-hosted route, not the default hosted setup.
+Recipient snapshot links do not grant creator or pool membership.
+[Sign-in controls](../../../web/team.html#L3), [membership](../../../web/team.html#L12).
 
 ## Get started
 
-1. Open your personal invitation. Pensieve signs you in and removes the secret from the address bar. Do not forward that invitation or use an operator key.
+1. Sign in to the hosted app. If you are joining an existing shared pool, give its owner your displayed member ID and wait for the appropriate access grant. Do not share your sign-in credentials. [Membership controls](../../../web/team.html#L12).
 2. Create a named memory pool. Choose **Only me** for a private pool or **Shared with invited team members** for collaboration. A shared pool is visible only to members you grant access to.
 3. Paste useful reasoning, decisions or an original excerpt. You can also load a text/Markdown file or a Pensieve JSON bundle. Review the text before saving. Choose **Original excerpt** for raw material; select **Reasoning and decisions** only when you have actually distilled it.
 4. Add the source project, conversation reference and citation when known. Mark demonstration material **Synthetic**. Click **Save memory** and wait for **Ready**. A failed save is reported at the top; check it before retrying.
@@ -15,7 +19,7 @@ A Pensieve JSON bundle that is saved without changing its preview preserves reco
 
 Check the memories for this audience. Write a short reviewed brief that explains the idea, decisions and next step. Enter recipient addresses and expiry, then select **Create private invitations**.
 
-Use **Open email draft** to prepare an email in your own mail application. Review and send it there. Pensieve does not silently send email. **Copy private invitation** lets you share the link another way. The invitation is a bearer secret: anyone holding it can read the selected snapshot until expiry or revocation.
+Choose **Only invited emails (verification required)** or **Anyone with the complete link** before creating invitations. Follow the delivery controls shown for that share. In link mode, anyone holding the complete link can read the selected snapshot until expiry or revocation. Email-code mode requires verification for an invited address. [Sharing controls](../../../web/team.html#L11).
 
 Create separate shares for different audiences. Unselected memories are not included. The recipient can read the brief in their browser and use **Download for an agent** to take the selected memories to another machine. The downloaded bundle retains source context and provenance; its source attribution is evidence, not authenticated authority on another machine.
 
@@ -23,7 +27,7 @@ Use **Revoke invitation access** to stop future online access. Snapshots are fix
 
 ## Collaborate and control capture
 
-Your personal member ID appears after sign-in. A pool owner can grant an already invited colleague **Read and download** or **Save and share** access using that colleague's ID. Readers cannot save memories, grant access or create hosted invitations. Writers cannot grant access. Private pools cannot add other members.
+Your personal member ID appears after sign-in. A pool owner can grant an signed-in colleague **Read and download** or **Save and share** access using that colleague's ID. Readers cannot save memories, grant access or create hosted invitations. Writers cannot grant access. Private pools cannot add other members.
 
 Under **Capture settings**, the pool owner can choose a default for every member. Writers and owners can save their own exact project/conversation overrides. Overrides replace the whole setting, so private/off does not retain an earlier shared target. The effective saved policy is displayed. With no saved policy, your selected pool is the explicit browser save target.
 
