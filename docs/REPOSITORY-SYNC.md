@@ -28,6 +28,13 @@ retry on their next cycle while retaining the previous publication. AWS SDK
 requests use bounded connection/request timeouts and three standard attempts to
 reduce the risk of overrunning the API's 29-second deadline.
 
+Bulk intake can exceed a small provisioned DynamoDB allowance. The module supports
+`billing_mode = "PAY_PER_REQUEST"` with explicit maximum read/write request units
+(default 1,000 each). This bills actual requests and removes fixed provisioned
+capacity; the maxima are throughput limits, not spending caps. Infrastructure
+changes require an operator Terraform plan/apply; CI remains limited to Lambda
+updates. See [AWS capacity guidance](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-switching-capacity-modes.html).
+
 ## Operational visibility
 
 AWS API and worker logs are in `/aws/lambda/pensieve-aws-api` and
