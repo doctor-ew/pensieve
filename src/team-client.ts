@@ -7,10 +7,18 @@ import {validateMemoryRecord,validateProvenance} from './memory-record.js';
 import type {Memory,Bundle,Hit} from './types.js';
 import type {TeamPool,TeamMemory,TeamUser} from './team-store.js';
 export interface CaptureContext {repository?:string;conversation?:string;policyFile?:string;automatic?:boolean}
+export class TeamRequestError extends Error {
+  constructor(readonly status:number) {
+    super(status===401
+      ? 'Pensieve rejected the saved personal credential (401). Sign in to Pensieve and reconnect this client using a valid personal credential. Never use an operator key or paste credentials into chat.'
+      : `Team request rejected (${status})`);
+    this.name='TeamRequestError';
+  }
+}
 export class TeamClient {
   readonly url:string;
   readonly binding:string;
-  constructor(url:string,private readonly token:string) {
+  constructor(url:string,private readonly token:string,readonly legacyBindings:string[]=[]) {
     const u=new URL(url);
     if(u.protocol!=='https:' && !(u.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(u.hostname))) throw Error('HTTPS required except loopback');
     if(u.username||u.password||u.search||u.hash||u.pathname!=='/') throw Error('Use a server origin without credentials or path');
@@ -25,7 +33,7 @@ export class TeamClient {
     const accessHeaders:Record<string,string>=accessId&&accessSecret?{'CF-Access-Client-Id':accessId,'CF-Access-Client-Secret':accessSecret}:{};
     try {response=await fetch(this.url+'/api/team/'+path,{method:body===undefined?'GET':'POST',headers:{...accessHeaders,Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30000)});}
     catch {throw Error('Team service unavailable; queued contributions remain local');}
-    if(!response.ok) throw Error(`Team request rejected (${response.status})`);
+    if(!response.ok) throw new TeamRequestError(response.status);
     return await response.json() as T;
   }
   async me(){return (await this.request<{user:TeamUser}>('me')).user;}
@@ -48,7 +56,7 @@ export class TeamClient {
 interface QueueRow {id:string;pool:string;memory:string;context:string;binding:string;provenance:string}
 export class ContributionQueue {
   private db:DatabaseSync;
-  constructor(home:string,private readonly binding='local-default'){
+  constructor(home:string,private readonly binding='local-default',private readonly legacyBindings:string[]=[]){
     mkdirSync(home,{recursive:true,mode:0o700});const path=join(home,'outbox.sqlite');this.db=new DatabaseSync(path);chmodSync(path,0o600);
     this.db.exec(`CREATE TABLE IF NOT EXISTS contributions(id TEXT PRIMARY KEY,pool TEXT NOT NULL,memory TEXT NOT NULL,context TEXT NOT NULL,binding TEXT NOT NULL,provenance TEXT NOT NULL DEFAULT '[]')`);
     const columns=this.db.prepare('PRAGMA table_info(contributions)').all();if(!columns.some(c=>c.name==='provenance'))this.db.exec(`ALTER TABLE contributions ADD COLUMN provenance TEXT NOT NULL DEFAULT '[]'`);
@@ -65,7 +73,7 @@ export class ContributionQueue {
     let sent=0,held=0;
     const rows=this.db.prepare('SELECT * FROM contributions ORDER BY rowid').all() as unknown as QueueRow[];
     for(const row of rows){
-      if(row.binding!==this.binding){held++;continue;}
+      if(row.binding!==this.binding&&!this.legacyBindings.includes(row.binding)){held++;continue;}
       const context=JSON.parse(row.context) as CaptureContext;
       try {
         if(!currentPolicy){held++;continue;}

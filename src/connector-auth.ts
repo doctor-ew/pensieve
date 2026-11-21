@@ -7,11 +7,12 @@ import type { OAuthClientInformationFull, OAuthTokenRevocationRequest, OAuthToke
 import { InvalidClientMetadataError, InvalidGrantError, InvalidTokenError, InvalidRequestError, InvalidScopeError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { TeamRepository } from './repositories.js';
+import type {TeamUser} from './team-store.js';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('base64url');
 const random = () => randomBytes(32).toString('base64url');
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-interface Pending { clientId: string; redirectUri: string; challenge: string; state?: string; resource: string; scopes?:string[]; refreshEnabled?:boolean }
+interface Pending { clientId: string; redirectUri: string; challenge: string; state?: string; resource: string; scopes?:string[]; refreshEnabled?:boolean; consentActor?:string }
 interface Grant extends Pending { actor: string }
 interface Family {actor:string;clientId:string;resource:string;scopes:string[];refreshEnabled:true;currentRefresh:string;currentAccess:string;inactiveExpires:number}
 const hour=3600_000,day=86400_000;
@@ -23,7 +24,7 @@ export class ConnectorAuth implements OAuthServerProvider {
   readonly skipLocalPkceValidation=true;
   readonly resource: URL;
   readonly clientsStore: OAuthRegisteredClientsStore;
-  constructor(private readonly store: TeamRepository, readonly publicUrl: URL, path: string, private readonly now = () => Date.now(), storage?:ConnectorStorage) {
+  constructor(private readonly store: TeamRepository, readonly publicUrl: URL, path: string, private readonly now = () => Date.now(), storage?:ConnectorStorage,private readonly browser?:{sessionUser?:(cookie:string|undefined)=>Promise<TeamUser|undefined>;loginPath?:string}) {
     if (publicUrl.username || publicUrl.password || publicUrl.search || publicUrl.hash || publicUrl.pathname !== '/' ||
         (publicUrl.protocol !== 'https:' && !(publicUrl.protocol === 'http:' && ['127.0.0.1','localhost'].includes(publicUrl.hostname)))) throw new Error('Connector URL must be HTTPS or loopback HTTP origin');
     this.resource = new URL('/mcp',publicUrl);
@@ -46,13 +47,21 @@ export class ConnectorAuth implements OAuthServerProvider {
   async authorize(client: OAuthClientInformationFull, params: AuthorizationParams, res: Response): Promise<void> {
     if (!client.redirect_uris.includes(params.redirectUri) || params.resource?.href !== this.resource.href ||
       (params.scopes ?? []).some(x => x !== 'memories') || !/^[A-Za-z0-9_-]{43}$/.test(params.codeChallenge) || (params.state?.length ?? 0)>2048) throw new InvalidRequestError('Invalid authorization binding');
+    const actor=await this.browser?.sessionUser?.(res.req.headers.cookie);
+    if(this.browser?.loginPath&&!actor){
+      const query=new URLSearchParams({client_id:client.client_id,response_type:'code',redirect_uri:params.redirectUri,resource:this.resource.href,code_challenge:params.codeChallenge,code_challenge_method:'S256',scope:(params.scopes??['memories']).join(' ')});
+      if(params.state!==undefined)query.set('state',params.state);
+      if(('/authorize?'+query).length>2048)throw new InvalidRequestError('Authorization return URL too long');
+      res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');
+      res.redirect(this.browser.loginPath+'?'+new URLSearchParams({returnTo:'/authorize?'+query}));return;
+    }
     await this.persistence.prune(this.now());
-    const nonce=random(); const pending:Pending={clientId:client.client_id,redirectUri:params.redirectUri,challenge:params.codeChallenge,state:params.state,resource:this.resource.href,scopes:params.scopes??['memories'],refreshEnabled:client.grant_types?.includes('refresh_token')??false};
+    const nonce=random(); const pending:Pending={clientId:client.client_id,redirectUri:params.redirectUri,challenge:params.codeChallenge,state:params.state,resource:this.resource.href,scopes:params.scopes??['memories'],refreshEnabled:client.grant_types?.includes('refresh_token')??false,...(actor?{consentActor:actor.id}:{})};
     await this.persistence.insert({table:'connector_pending',key:digest(nonce),row:{body:JSON.stringify(pending),expires:this.now()+300_000}},2000);
     res.cookie('pensieve_consent',nonce,{httpOnly:true,sameSite:'lax',secure:this.publicUrl.protocol==='https:',path:'/connector/consent',maxAge:300_000});
     res.setHeader('Content-Security-Policy',`default-src 'none'; form-action 'self' ${new URL(params.redirectUri).origin}; frame-ancestors 'none'; base-uri 'none'`);
     res.setHeader('Referrer-Policy','same-origin'); res.setHeader('Cache-Control','no-store');
-    res.type('html').send(`<!doctype html><html><head><title>Connect Pensieve</title></head><body><h1>Connect ${escapeHtml(client.client_name ?? 'this client')} to Pensieve</h1><p>Allow this client to use memories in pools you can access. This does not grant access to other pools.</p><form method="post" action="/connector/consent"><input type="hidden" name="nonce" value="${nonce}"><label>Personal Pensieve credential (leave blank if signed in) <input type="password" name="credential" autocomplete="off" maxlength="512"></label><button name="decision" value="approve">Allow connection</button><button name="decision" value="deny">Cancel</button></form></body></html>`);
+    res.type('html').send(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Pensieve</title></head><body><h1>Connect ${escapeHtml(client.client_name ?? 'this client')} to Pensieve</h1><p>Allow this client to use memories in pools you can access. This does not grant access to other pools.</p>${actor?`<p>Signed in as ${escapeHtml(actor.name)}.</p>`:''}<p>This connection is independent of your other agents. You can disconnect it from the client.</p><form method="post" action="/connector/consent"><input type="hidden" name="nonce" value="${nonce}">${actor?'':'<label>Personal Pensieve credential (leave blank if signed in) <input type="password" name="credential" autocomplete="off" maxlength="512"></label>'}<button name="decision" value="approve">Allow connection</button><button name="decision" value="deny">Cancel</button></form></body></html>`);
   }
   async consent(nonce: string, cookieNonce: string, credential: string, decision: string, authenticatedActorId?:string): Promise<string> {
     if (!nonce || nonce.length>128 || nonce!==cookieNonce) throw new InvalidRequestError('Invalid consent request');
@@ -62,6 +71,7 @@ export class ConnectorAuth implements OAuthServerProvider {
     const pending=JSON.parse(row.body) as Pending; const target=new URL(pending.redirectUri);
     // A bad credential cannot consume a valid pending request; no credential is persisted.
     const actor=decision==='approve'?(credential?(await this.store.authenticate(credential)).id:authenticatedActorId?(await this.store.getUser(authenticatedActorId)).id:undefined):undefined;
+    if(decision==='approve'&&pending.consentActor&&actor!==pending.consentActor)throw new InvalidRequestError('Signed-in account changed; start authorization again');
     if(decision==='approve'&&!actor)throw new InvalidRequestError('Sign in or provide your personal credential');
     const code=actor?random():undefined;
     const consumed=await this.persistence.consume({table:'connector_pending',key:digest(nonce),row},this.now(),code?{table:'connector_codes',key:digest(code),row:{body:JSON.stringify({...pending,actor}),expires:this.now()+300_000}}:undefined);
