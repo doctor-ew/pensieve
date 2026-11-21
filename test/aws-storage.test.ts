@@ -47,7 +47,7 @@ test('AC3/4/5 DynamoDB indexing retries bounded work and rejects stale or cross-
  await assert.rejects(store.processIndexBatch(batchId,{identity:'test:v1',embed:async()=>{throw Error('provider unavailable');}}),/provider unavailable/);assert.equal(upserts.length,0);
  const first=await store.processIndexBatch(batchId,provider);assert.equal(first.processed,16);assert.equal(first.done,false);await store.processIndexBatch(batchId,provider);assert.equal((await store.processIndexBatch(batchId,provider)).done,true);assert.equal(upserts.flat().length,33);assert.equal((await store.processIndexBatch(batchId,provider)).processed,0);
  hits=[{memoryId:records[0].id,revision:'stale',score:1},{memoryId:memory('foreign').id,revision:'foreign',score:1}];assert.deepEqual(await store.search(user.user.id,pool.id,'query',provider),[]);
- await store.index(user.user.id,pool.id,provider);const runKey='INDEX-RUN#'+createHash('sha256').update(provider.identity).digest('hex');const run=await db.get(`POOL#${pool.id}`,runKey);await store.index(user.user.id,pool.id,provider);assert.equal((await db.get(`POOL#${pool.id}`,runKey))?.batchId,run?.batchId);let done=false;while(!done)done=(await store.processIndexBatch(String(run?.batchId),provider)).done;assert.equal(upserts.flat().length,33,'AC5 ready revisions are not embedded again');await assert.rejects(store.index(user.user.id,pool.id,provider),/cooldown/);
+ await store.index(user.user.id,pool.id,provider);const runKey='INDEX-RUN#'+createHash('sha256').update(provider.identity).digest('hex');const run=await db.get(`POOL#${pool.id}`,runKey);await store.index(user.user.id,pool.id,provider);assert.equal((await db.get(`POOL#${pool.id}`,runKey))?.batchId,run?.batchId);let done=false;while(!done)done=(await store.processIndexBatch(String(run?.batchId),provider)).done;assert.equal(upserts.flat().length,33,'AC5 ready revisions are not embedded again');assert.equal(await store.index(user.user.id,pool.id,provider),0);assert.equal((await db.get(`POOL#${pool.id}`,runKey))?.batchId,run?.batchId,'cooldown does not enqueue duplicate work');
  const correct=upserts.flat().find(r=>r.memoryId===records[0].id)!;hits=[{memoryId:correct.memoryId,revision:correct.revision,score:0.8}];assert.equal((await store.search(user.user.id,pool.id,'query',provider))[0].id,correct.memoryId);
  await assert.rejects(store.search(user.user.id,pool.id,'query',{identity:'test:v1',embed:async()=>{await store.revokeUser(user.user.id);return [[1,0]];}}),/Unauthorized/);
 });
@@ -121,3 +121,13 @@ test('AC4/5 reactivation before blocking transaction preserves pending work',asy
 });
 
 test.after(async()=>{if(table)for(const [id,key] of owned){await db.delete(key.pk,key.sk);owned.delete(id);writeFileSync(manifest,JSON.stringify([...owned.values()]),{mode:0o600});}client.destroy();});
+
+test('manual indexing cooldown is idempotent, preserves authorization and allows later runs',async()=>{
+ const f=await actorIndexFixture(true),key='INDEX-RUN#'+createHash('sha256').update(f.embedding.identity).digest('hex');
+ const batch=await f.fixture.get('BATCH#batch','META');f.fixture.seed({...batch!,indexState:'ready'});
+ f.fixture.seed({pk:'POOL#pool',sk:key,batchId:'batch',created:Date.now()});const before=f.fixture.transactions.length;
+ assert.equal(await f.store.index('writer','pool',f.embedding),0);assert.equal(f.fixture.transactions.length,before);assert.equal((await f.fixture.get('POOL#pool',key))?.batchId,'batch');
+ await assert.rejects(f.store.index('unknown','pool',f.embedding),/Unauthorized/);
+ f.fixture.seed({pk:'POOL#pool',sk:'MEMBER#writer',actor:'writer',role:'reader',version:2});await assert.rejects(f.store.index('writer','pool',f.embedding),/Writer/);
+ f.fixture.seed({pk:'POOL#pool',sk:key,batchId:'batch',created:Date.now()-61000});assert.equal(await f.store.index('owner','pool',f.embedding),0);assert.notEqual((await f.fixture.get('POOL#pool',key))?.batchId,'batch');
+});

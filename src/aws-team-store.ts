@@ -93,7 +93,8 @@ export class AwsTeamStore implements TeamRepository {
   if(run){const batch=await this.db.get<BatchRow>(batchKey(String(run.batchId)),'META');if(batch?.indexState==='pending'){
    if(Number(run.created)+15*60*1000>this.now())return 0;
    await this.db.transact([...this.checks(a,false),this.db.putAction({...run,created:this.now()},'created=:created',{':created':run.created}),this.db.putAction({...batch,indexVersion:(batch.indexVersion??0)+1},'indexVersion=:v',{':v':batch.indexVersion??0})]);return 0;
-  }if(Number(run.created)+60000>this.now())throw Error('Index request cooldown; try later');}
+  }// A recent completed run is an idempotent success, not an authentication failure.
+  if(Number(run.created)+60000>this.now())return 0;}
   const id=randomUUID();await this.db.transact([...this.checks(a,false),this.db.putAction({pk:poolKey(pool),sk:key,batchId:id,created:this.now()},run?'batchId=:prior':'attribute_not_exists(pk)',run?{':prior':run.batchId}:undefined),this.db.putAction({pk:batchKey(id),sk:'META',kind:'index-batch',state:'committed',poolId:pool,actor,created:this.now(),indexState:'pending',indexVersion:0,reindex:true,model:provider.identity},'attribute_not_exists(pk)'),this.db.putAction({pk:'WORK#INDEX',sk:`PENDING#${id}`,batchId:id},'attribute_not_exists(pk)')]);return 0;
  }
  private async blockInactiveIndexActor(batch:BatchRow):Promise<boolean>{
