@@ -21,8 +21,8 @@ import {beginBrowserConnection,readAgentConnection,connectionStatus,disconnectAg
 async function fixture(){
  const root=await mkdtemp(join(tmpdir(),'pensieve-agent-')),store=new TeamStore(':memory:');
  const alice=store.createUser('Alice'),bob=store.createUser('Bob');store.createPool(alice.user.id,'Alice pool','private');store.createPool(bob.user.id,'Bob pool','private');
- let app:ReturnType<typeof createConnectorApp>['app'];let refreshes=0;
- const http=createServer((req,res)=>{if(req.url==='/token'&&req.method==='POST')refreshes++;app(req,res);});http.listen(0,'127.0.0.1');await once(http,'listening');
+ let app:ReturnType<typeof createConnectorApp>['app'];let refreshes=0,mcpRequests=0;
+ const http=createServer((req,res)=>{if(req.url==='/token'&&req.method==='POST')refreshes++;if(req.url==='/mcp'&&req.method==='POST')mcpRequests++;app(req,res);});http.listen(0,'127.0.0.1');await once(http,'listening');
  const url=`http://127.0.0.1:${(http.address() as {port:number}).port}`;
  const connector=createConnectorApp(store,{publicUrl:url,statePath:join(root,'oauth.sqlite'),loginPath:'/auth/login',sessionUser:async cookie=>cookie?.includes('actor=alice')?alice.user:cookie?.includes('actor=bob')?bob.user:undefined});app=connector.app;const legacy=createTeamServer(store,{publicUrl:url,ownerToken:'o'.repeat(40)});app.use((req,res)=>{legacy.emit('request',req,res);});
  async function approve(flow:{url:string},actor='alice'){
@@ -31,7 +31,7 @@ async function fixture(){
   const consent=await fetch(url+'/connector/consent',{method:'POST',redirect:'manual',headers:{Origin:url,Cookie:response.headers.get('set-cookie')!.split(';')[0]+'; actor='+actor,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({nonce,decision:'approve'})});assert.equal(consent.status,302);
   const callback=await fetch(consent.headers.get('location')!);assert.equal(callback.status,200,await callback.text());
  }
- return {root,url,store,alice,bob,connector,approve,count:()=>refreshes,close:async()=>{http.closeAllConnections();await new Promise<void>(r=>http.close(()=>r()));connector.close();store.close();await rm(root,{recursive:true,force:true});}};
+ return {root,url,store,alice,bob,connector,approve,count:()=>refreshes,requests:()=>mcpRequests,close:async()=>{http.closeAllConnections();await new Promise<void>(r=>http.close(()=>r()));connector.close();store.close();await rm(root,{recursive:true,force:true});}};
 }
 async function expire(home:string){const path=join(home,'agent-connection.json'),state=JSON.parse(await readFile(path,'utf8'));state.expiresAt=0;await writeFile(path,JSON.stringify(state));return state;}
 
@@ -45,6 +45,7 @@ test('browser sign-in, concurrent renewal, independent grants and same-process r
   await f.approve(flow);await flow.done;
   assert.equal((await stat(join(home,'agent-connection.json'))).mode&0o777,0o600);
   const pools=await client.callTool({name:'list_pools',arguments:{}});assert.ok(!pools.isError);assert.match(JSON.stringify(pools),/Alice pool/);
+  const baseline=f.requests();for(let i=0;i<5;i++)await (await connectedClient(home)).pools();assert.equal(f.requests()-baseline,5,'reuse authenticated MCP transport across commands');
   const first=await connectedClient(home),binding=first.binding;await expire(home);const before=f.count();
   const results=await Promise.all(Array.from({length:5},async()=>(await connectedClient(home)).pools()));assert.ok(results.every(p=>p.length===1));assert.equal(f.count()-before,1);assert.equal((await connectedClient(home)).binding,binding);
   await expire(home);const crossBefore=f.count();
@@ -96,7 +97,7 @@ test('legacy queues migrate only after both credentials prove the same account',
 test('lost refresh response preserves uncertainty and never replays a consumed token',async t=>{
  const f=await fixture(),home=join(f.root,'lost');try{
   const flow=await beginBrowserConnection(home,f.url);await f.approve(flow);await flow.done;await expire(home);
-  const realFetch=globalThis.fetch;let refreshes=0;
+  const realFetch=globalThis.fetch;let refreshes=0,mcpRequests=0;
   t.mock.method(globalThis,'fetch',async(input:Parameters<typeof fetch>[0],init?:RequestInit)=>{
    const response=await realFetch(input,init);
    if(String(input)===f.url+'/token'&&String(init?.body).includes('grant_type=refresh_token')){refreshes++;await response.text();throw Error('Simulated lost reply');}

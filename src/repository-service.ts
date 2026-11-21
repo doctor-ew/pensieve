@@ -30,7 +30,7 @@ export class RepositoryService {
   if(policy.destination==='off'||(policy.destination==='private'&&pool.visibility!=='private')||(policy.destination==='shared'&&policy.pool!==pool.id))throw Error('Capture policy blocks repository publication');
   return repo;
  }
- private summary(repo:ConnectedRepository){const {knowledge,...rest}=repo;return {...rest,...(knowledge?{knowledge:{session:knowledge.session,revision:knowledge.revision,publishedAt:knowledge.publishedAt,records:knowledge.ids.length,indexing:'pending-verification'}}:{})};}
+ private summary(repo:ConnectedRepository){const {knowledge,...rest}=repo;return {...rest,...(knowledge?{knowledge:{formatVersion:knowledge.formatVersion??1,session:knowledge.session,revision:knowledge.revision,publishedAt:knowledge.publishedAt,records:knowledge.ids.length,indexing:'pending-verification'}}:{})};}
  async status(actor:string,repositoryId:string){
   const repo=(await this.authorized(actor,repositoryId)).value;const result=this.summary(repo);
   if(repo.knowledge&&this.provider&&this.teams.indexedMemoryCount){const indexed=await this.teams.indexedMemoryCount(actor,repo.poolId,repo.knowledge.ids,this.provider.identity);return {...result,knowledge:{...result.knowledge,indexed,indexing:indexed===repo.knowledge.ids.length?'complete':'pending'}};}
