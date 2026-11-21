@@ -1,8 +1,15 @@
 resource "aws_dynamodb_table" "app" {
-  name                        = local.name
-  billing_mode                = "PROVISIONED"
-  read_capacity               = var.read_capacity
-  write_capacity              = var.write_capacity
+  name           = local.name
+  billing_mode   = var.billing_mode
+  read_capacity  = var.billing_mode == "PROVISIONED" ? var.read_capacity : null
+  write_capacity = var.billing_mode == "PROVISIONED" ? var.write_capacity : null
+  dynamic "on_demand_throughput" {
+    for_each = var.billing_mode == "PAY_PER_REQUEST" ? [1] : []
+    content {
+      max_read_request_units  = var.max_read_request_units
+      max_write_request_units = var.max_write_request_units
+    }
+  }
   hash_key                    = "pk"
   range_key                   = "sk"
   stream_enabled              = true
