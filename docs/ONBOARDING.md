@@ -6,6 +6,36 @@ do not provision AWS or install a database or MEX. Repository knowledge consumer
 not need the source checkout. [Hosted setup](INSTALL-ANOTHER-LAPTOP.md#use-the-hosted-app),
 [repository access](REPOSITORY-SYNC.md#L6).
 
+## Where account creation and sign-in happen
+
+| Starting point | Supported entry | Where identity is completed |
+| --- | --- | --- |
+| Web browser | **Create account** or **Sign in** on Pensieve | Hosted browser identity page, then back to Pensieve. |
+| Terminal CLI | `pensieve connect https://pensieve.doctorew.com` | Browser sign-in and approval; the waiting terminal receives the result. |
+| Local Pensieve MCP adapter | Ask the agent to call `connect_pensieve` | The tool returns a link for you to open and approve; retry the original tool afterward. |
+| Native remote MCP in a chat app or IDE | Add the Pensieve MCP URL in the host's connector settings, then authorize | The host starts browser OAuth and receives its own connection. Availability depends on the app, account and workspace policy. |
+
+Sources: [web account routes](../src/identity-routes.ts#L31),
+[CLI browser flow](../src/team-cli.ts#L35), [local MCP tool](../src/team-service.ts#L52),
+[remote consent redirect](../src/connector-auth.ts#L56).
+
+There is no separate password-based account-creation CLI or MCP tool. New users can
+create their account at [Create account](https://pensieve.doctorew.com/auth/signup),
+then start or retry the terminal/agent connection. Account creation and email
+verification happen in the browser, not by sending a password or verification code to
+the chat. The local `connect_pensieve` tool is not an unauthenticated tool on the remote
+MCP endpoint; native remote clients must perform their connector authorization first.
+[CLI surface](../src/team-cli.ts#L11), [local tool registration](../src/team-service.ts#L52),
+[identity callback](../src/identity-routes.ts#L31).
+
+For ChatGPT, follow the [official custom MCP app instructions](https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-apps-in-chatgpt-beta);
+use ChatGPT web for setup where instructed, rather than assuming a desktop app has
+identical controls. For Claude, use the [custom connector guide](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
+For Cursor, use its [MCP documentation](https://prod.cursor.com/docs/mcp).
+These are supported protocol routes and provider instructions, not a claim that every
+Pensieve flow has been verified in each desktop application. Test pool listing and
+recall in the actual host after authorization. [Verification limits](admin-oversight/DEPLOY.md#remaining-limits).
+
 ## 1. Sign in and choose your pool
 
 Open the app and use **Create account** if you need an account, or **Sign in** if you
