@@ -1,8 +1,8 @@
 # Pensieve
 
-## Current AWS release — deploy/aws
+## Use the hosted Pensieve service
 
-The production app is **https://pensieve.doctorew.com**. Use **[Connect your AI](https://pensieve.doctorew.com/connect)** to connect another laptop without hosting infrastructure. The current source branch is **deploy/aws**; **deploy/railway-sqlite** preserves the earlier Railway/SQLite deployment. Follow **[Install on another laptop](docs/INSTALL-ANOTHER-LAPTOP.md)** for the CLI and agent setup.
+The production app is **https://pensieve.doctorew.com**. Use **[Connect your AI](https://pensieve.doctorew.com/connect)** to connect another laptop without hosting infrastructure. Use **main** for current source; **deploy/aws** is the AWS release branch; **deploy/railway-sqlite** preserves the earlier Railway/SQLite deployment. Follow **[Install on another laptop](docs/INSTALL-ANOTHER-LAPTOP.md)** for the CLI and agent setup.
 
 AWS uses Lambda, DynamoDB, S3 snapshots, S3 Vectors, Cognito, SES and CloudFront. Infrastructure is Terraform-managed. The owner admin portal and guided setup are deployed; unfinished admin features and verification limits are recorded in [the deployment receipt](docs/admin-oversight/DEPLOY.md). Earlier local/Railway/PostgreSQL guides below describe those supported modes, not the current production architecture.
 
@@ -11,13 +11,25 @@ and documents searchable by connected AI agents. MEX powers semantic code analys
 Pensieve adds shared storage, revision citations, automatic updates, and cited
 Markdown/Swift source coverage.
 
+## Start here
+
+- **New users:** [Hosted onboarding and connection troubleshooting](docs/ONBOARDING.md).
+- **Connect an AI or another laptop:** [Installation and renewable browser sign-in](docs/INSTALL-ANOTHER-LAPTOP.md).
+- **Share a pool or selected memories:** [Browser creator guide](docs/pensieve-platform/manual-delivery/CREATOR-GUIDE.md).
+- **Owner accounts and activity:** [Administration](https://pensieve.doctorew.com/auth/login?returnTo=/admin). This is a limited activity log, not complete connection analytics; see [coverage limits](docs/admin-oversight/DEPLOY.md#remaining-limits).
+
+Browser sign-in alone does not prove an agent can access a pool. Finish onboarding by
+listing pools and recalling a known memory from the intended pool. The guide includes
+recovery for old credentials, expired connections, missing membership and indexing delays.
+[Connection implementation](src/agent-connection.ts#L90), [pool authorization](src/aws-team-store.ts#L35).
+
 **Pick up the thread.** Session memory from Doctor Ew’s Laboratory.
 
 Capture a thought, import Codex and Claude Code conversations, and recall relevant
 passages by meaning. Keep your pool private, then deliberately share selected
 memories as portable bundles, Git files, or through a self-hosted workspace.
 
-This is an early, runnable v0.2. Its local vector store uses SQLite persistence and
+The optional local v0.2 mode uses SQLite persistence and
 exact cosine ranking. It is not an approximate-nearest-neighbor engine; search
 currently scans the selected model’s vectors in memory. See [the store](src/store.ts).
 
@@ -37,13 +49,15 @@ unverified. [Adapter](src/azure-vectors.ts), [verification](docs/pensieve-platfo
 
 ## Share without the terminal ceremony
 
-In the UI, click **Share with someone**, review the brief and selected memories,
-enter recipient emails, then **Create private link → Email invitation**. This
-opens a prepared draft in your email app; send it from your usual account.
-Recipients open the private invitation link directly. Anyone holding the link
-can access the snapshot until expiry or revocation. **Manage shares** lets you revoke access.
-**Download pool** saves the whole pool as one portable file.
-[Executive sharing guide](docs/EXECUTIVE-SHARING.md).
+In the hosted app, select memories and open **Share selected memories**. Choose
+**Only invited emails (verification required)** or **Anyone with the complete link**,
+review the brief, recipients and expiry, then create private invitations. Shared-pool
+membership gives continuing access; an invitation shares a fixed selection. Revoke
+shares separately from pool membership. Already downloaded copies cannot be recalled.
+[Hosted sharing controls](web/team.html#L11), [onboarding](docs/ONBOARDING.md#share-with-people).
+
+The local named-pool UI also supports **Share with someone**, email drafts and
+portable pool downloads. [Local executive sharing guide](docs/EXECUTIVE-SHARING.md).
 
 From a shell, use `pensieve open hack-her-thon`, `pensieve share hack-her-thon`,
 or `pensieve pack hack-her-thon`. Pool names are registered once; ordinary use
@@ -52,7 +66,7 @@ Code and `$pensieve` for Codex. After building, `bash scripts/install-local.sh`
 installs the local launcher and both agent shortcuts, preserving conflicting
 existing files. [CLI](src/cli.ts), [installer](scripts/install-local.sh).
 
-Private invitation links require a deployed sharing service, but no external
+The optional local link-sharing workflow requires a deployed sharing service, but no external
 email provider. The sender connects it once in **Sharing settings**; recipients install
 nothing. The brief uses a saved reviewed project overview when available; otherwise you must write one before sharing. Generated answers are
 optional and require both share-level consent and operator model configuration.
@@ -120,7 +134,7 @@ exports preserve selected text **and source metadata**, including project paths.
 There is no automatic secret scrubber. Review the actual selection before sharing.
 [Bundle creation](src/store.ts), [browser selection](web/app.js).
 
-## Three ways to share
+## Additional portable and self-hosted sharing options
 
 1. **Portable:** use `pensieve list` to inspect IDs, then
    `pensieve export memories.json --ids ID1,ID2`. The recipient runs
@@ -177,6 +191,6 @@ still uses `pensieve index --home .pensieve`. Download authorization checks the
 share's access and expiry; already downloaded copies are not revoked remotely.
 [Download route](src/share-server.ts), [reader](web/reader.js).
 
-## Hosted PostgreSQL and customer login
+## Optional PostgreSQL deployment
 
 The hosted platform supports PostgreSQL/pgvector, Cognito sign-in, durable sessions and connector state, and an authorized email outbox. Local SQLite remains supported. See the [architecture/spec and Mermaid diagrams](docs/hosted-platform/SPEC.md), [runbook](docs/hosted-platform/RUNBOOK.md), and [migration procedure](docs/hosted-platform/MIGRATION.md). AWS identity/DNS configuration is in `infra/hosted`; deployment is a separate migration step.
