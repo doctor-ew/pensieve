@@ -18,7 +18,7 @@ export class TeamRequestError extends Error {
 export class TeamClient {
   readonly url:string;
   readonly binding:string;
-  constructor(url:string,private readonly token:string) {
+  constructor(url:string,private readonly token:string,readonly legacyBindings:string[]=[]) {
     const u=new URL(url);
     if(u.protocol!=='https:' && !(u.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(u.hostname))) throw Error('HTTPS required except loopback');
     if(u.username||u.password||u.search||u.hash||u.pathname!=='/') throw Error('Use a server origin without credentials or path');
@@ -56,7 +56,7 @@ export class TeamClient {
 interface QueueRow {id:string;pool:string;memory:string;context:string;binding:string;provenance:string}
 export class ContributionQueue {
   private db:DatabaseSync;
-  constructor(home:string,private readonly binding='local-default'){
+  constructor(home:string,private readonly binding='local-default',private readonly legacyBindings:string[]=[]){
     mkdirSync(home,{recursive:true,mode:0o700});const path=join(home,'outbox.sqlite');this.db=new DatabaseSync(path);chmodSync(path,0o600);
     this.db.exec(`CREATE TABLE IF NOT EXISTS contributions(id TEXT PRIMARY KEY,pool TEXT NOT NULL,memory TEXT NOT NULL,context TEXT NOT NULL,binding TEXT NOT NULL,provenance TEXT NOT NULL DEFAULT '[]')`);
     const columns=this.db.prepare('PRAGMA table_info(contributions)').all();if(!columns.some(c=>c.name==='provenance'))this.db.exec(`ALTER TABLE contributions ADD COLUMN provenance TEXT NOT NULL DEFAULT '[]'`);
@@ -73,7 +73,7 @@ export class ContributionQueue {
     let sent=0,held=0;
     const rows=this.db.prepare('SELECT * FROM contributions ORDER BY rowid').all() as unknown as QueueRow[];
     for(const row of rows){
-      if(row.binding!==this.binding){held++;continue;}
+      if(row.binding!==this.binding&&!this.legacyBindings.includes(row.binding)){held++;continue;}
       const context=JSON.parse(row.context) as CaptureContext;
       try {
         if(!currentPolicy){held++;continue;}

@@ -35,7 +35,7 @@ export async function createAwsRuntime(){
  const parameter=required('PENSIEVE_OWNER_TOKEN_PARAMETER');
  const ownerToken=(await new SSMClient({maxAttempts:2}).send(new GetParameterCommand({Name:parameter,WithDecryption:true}))).Parameter?.Value;
  if(!ownerToken||ownerToken.length<32)throw Error('Operator credential unavailable');
- const connector=createConnectorApp(store,{publicUrl,statePath:':memory:',provider,storage:new AwsConnectorStorage(db),sessionUser:async cookie=>{
+ const connector=createConnectorApp(store,{publicUrl,statePath:':memory:',provider,loginPath:'/auth/login',storage:new AwsConnectorStorage(db),sessionUser:async cookie=>{
   const token=/(?:^|;\s*)pensieve_session=([a-f0-9]{64})(?:;|$)/.exec(cookie??'')?.[1];if(!token)return;const session=await sessions.get(token);return session?store.getUser(session.userId):undefined;
  }});
  const verification=verificationGuard(undefined,{check:(action,address,scope)=>delivery.checkVerification(action,address,scope??'')});
