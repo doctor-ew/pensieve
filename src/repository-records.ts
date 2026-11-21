@@ -22,7 +22,7 @@ export class LocalRepositoryRecords implements RepositoryRecords {
  async compareAndSetMany(writes:RepositoryRecordWrite[]){
   if(!writes.length||writes.length>10||new Set(writes.map(w=>w.key)).size!==writes.length)throw Error('Invalid repository transaction');
   this.db.exec('BEGIN IMMEDIATE');try{
-   for(const {key,partition,expected,value} of writes){const body=JSON.stringify(value);if(Buffer.byteLength(body)>250000)throw Error('Repository record too large');
+   for(const {key,partition,expected,value} of writes){const body=JSON.stringify(value);if(Buffer.byteLength(body)>300000)throw Error('Repository record too large');
     const result=expected===undefined?this.db.prepare('INSERT OR IGNORE INTO repository_records VALUES (?,?,1,?)').run(key,partition,body):this.db.prepare('UPDATE repository_records SET body=?,revision=revision+1 WHERE key=? AND partition=? AND revision=?').run(body,key,partition,expected);
     if(result.changes!==1){this.db.exec('ROLLBACK');return false;}
    }this.db.exec('COMMIT');return true;
@@ -37,7 +37,7 @@ export class AwsRepositoryRecords implements RepositoryRecords {
  async compareAndSetMany(writes:RepositoryRecordWrite[]){
   if(!writes.length||writes.length>10||new Set(writes.map(w=>w.key)).size!==writes.length)throw Error('Invalid repository transaction');
   const actions=writes.flatMap(({key,partition,expected,value})=>{
-   const body=JSON.stringify(value);if(Buffer.byteLength(body)>250000)throw Error('Repository record too large');const revision=(expected??0)+1;
+   const body=JSON.stringify(value);if(Buffer.byteLength(body)>300000)throw Error('Repository record too large');const revision=(expected??0)+1;
    const record={pk:'CODE-RECORD#'+key,sk:'RECORD',revision,partition,body};
    return [{Put:{TableName:this.db.table,Item:record,ConditionExpression:expected===undefined?'attribute_not_exists(pk)':'#revision = :expected AND #partition = :partition',...(expected===undefined?{}:{ExpressionAttributeNames:{'#revision':'revision','#partition':'partition'},ExpressionAttributeValues:{':expected':expected,':partition':partition}})}},this.db.putAction({...record,pk:'CODE-LIST#'+partition,sk:key})];
   });

@@ -31,7 +31,7 @@ export class RepositoryPublication {
     try{const u=new URL(c);return u.protocol!=='pensieve-code:'||u.hostname!==publication.repositoryId||u.searchParams.get('rev')!==publication.revision;}catch{return true;}
    }))throw Error('Publication evidence has mismatched repository or revision');
   }
-  const ids=[...new Set([...publication.ids,...memories.map(m=>m.id)])];if(ids.length>3000)throw Error('Repository knowledge limit exceeded');
+  const ids=[...new Set([...publication.ids,...memories.map(m=>m.id)])];if(ids.length>4000)throw Error('Repository knowledge limit exceeded');
   const repo=await this.service.publicationAllowed(actor,publication.repositoryId);
   if(repo.revision!==publication.expectedRepositoryVersion)throw Error('Repository changed; start a new publication');
   await this.service.teams.putMemories(actor,repo.value.poolId,memories);

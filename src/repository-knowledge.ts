@@ -21,8 +21,8 @@ export function repositoryKnowledge(root:string,snapshot:SourceSnapshot,reposito
  try{
   if(Number(db.prepare('SELECT MAX(version) AS version FROM schema_versions').get()?.version)!==4)throw Error('Unsupported MEX graph schema');
   if(Number(db.prepare("SELECT COUNT(*) AS count FROM files WHERE parse_status <> 'ok'").get()?.count)>0)throw Error('Incomplete graph extraction; keep the prior publication and fix source diagnostics');
-  const nodes=db.prepare("SELECT id,kind,name,qualified_name,file_path,start_line,end_line,signature,docstring FROM nodes WHERE kind NOT IN ('parameter','import') ORDER BY file_path,start_line,id LIMIT 3001").all();
-  if(nodes.length>3000)throw Error('Repository exceeds the 3,000 knowledge-record limit');
+  const nodes=db.prepare("SELECT id,kind,name,qualified_name,file_path,start_line,end_line,signature,docstring FROM nodes WHERE kind NOT IN ('parameter','import') ORDER BY file_path,start_line,id LIMIT 4001").all();
+  if(nodes.length>4000)throw Error('Repository exceeds the 4,000 knowledge-record limit');
   const sources=new Map(snapshot.files.map(f=>[f.path,Buffer.from(f.content,'base64').toString('utf8').split('\n')]));
   const edges=db.prepare('SELECT e.kind,e.confidence,e.resolution_method,n.qualified_name,n.file_path FROM edges e JOIN nodes n ON n.id=e.target WHERE e.source=? ORDER BY e.kind,n.file_path,n.qualified_name LIMIT 21');
   return nodes.map(node=>{

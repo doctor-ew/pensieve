@@ -18,7 +18,7 @@ Records are staged in batches. The repository pointer and completed publication 
 
 AWS indexing is asynchronous. `published` is not equivalent to searchable. `get_repository_status` reports completion only after comparing per-record vector receipts for the configured embedding model. Retry `team-index` if indexing is pending; a failed request does not undo the durable publication. See [repository-service.ts](../../src/repository-service.ts), [aws-team-store.ts](../../src/aws-team-store.ts), and [repository-protocol.ts](../../src/repository-protocol.ts).
 
-Scope limits are 5,000 supported source files, 25 MB total, 1 MB per file, and 3,000 derived records. Excerpts and relationship lists are explicitly bounded. Unsupported/binary sources, symlinks, generated directories, and hidden paths are not ingested by the producer. The graph export is explicitly tied to MEX schema 4 and fails closed on a changed schema. See [repository-sync.ts](../../src/repository-sync.ts) and [repository-knowledge.ts](../../src/repository-knowledge.ts).
+Scope limits are 5,000 supported source files, 25 MB total, 1 MB per file, and 4,000 derived records. Excerpts and relationship lists are explicitly bounded. Unsupported/binary sources, symlinks, generated directories, and hidden paths are not ingested by the producer. The graph export is explicitly tied to MEX schema 4 and fails closed on a changed schema. See [repository-sync.ts](../../src/repository-sync.ts) and [repository-knowledge.ts](../../src/repository-knowledge.ts).
 
 ## Validation
 

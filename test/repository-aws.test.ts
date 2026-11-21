@@ -14,6 +14,7 @@ test('DynamoDB atomically publishes repository manifests and verifies vector rec
  const client=new DynamoDBClient({endpoint,region:'us-east-1',credentials:{accessKeyId:'local',secretAccessKey:'local'}});
  try{
   const db=new AwsDatabase(DynamoDBDocumentClient.from(client,{marshallOptions:{removeUndefinedValues:true}}),'repository_test'),records=new AwsRepositoryRecords(db),vectors=new Map<string,AwsVectorRecord>();
+  const boundary=randomUUID(),ids=Array.from({length:4000},(_,i)=>createHash('sha256').update(String(i)).digest('hex'));assert.equal(await records.compareAndSet('boundary:'+boundary,'boundary:'+boundary,undefined,{ids}),true);assert.equal((await records.get<{ids:string[]}>('boundary:'+boundary))?.value.ids.length,4000);
   const provider={identity:'synthetic-aws-repository-test',embed:async(texts:string[])=>texts.map(()=>[1,0])};
   const teams=await AwsTeamStore.open(db,{knowledgeSessions:pool=>activeKnowledgeSessions(records,pool),vectors:{upsert:async rows=>{for(const row of rows)vectors.set(row.key,row);},query:async input=>[...vectors.values()].filter(v=>v.poolId===input.poolId&&v.model===input.model&&(!v.knowledgeSession||input.knowledgeSessions?.includes(v.knowledgeSession))).map(v=>({memoryId:v.memoryId,revision:v.revision,score:0.9}))}});
   const service=new RepositoryService(teams,records,{put:async()=>{throw Error('No source blobs required');},get:async()=>{throw Error('No source blobs required');}},provider);
