@@ -18,6 +18,21 @@ Markdown/Swift source coverage.
 - **Share a pool or selected memories:** [Browser creator guide](docs/pensieve-platform/manual-delivery/CREATOR-GUIDE.md).
 - **Owner accounts and activity:** [Administration](https://pensieve.doctorew.com/auth/login?returnTo=/admin). This is a limited activity log, not complete connection analytics; see [coverage limits](docs/admin-oversight/DEPLOY.md#remaining-limits).
 
+### Choose where to start
+
+| Entry point | How to connect |
+| --- | --- |
+| Browser | [Create an account](https://pensieve.doctorew.com/auth/signup) or [sign in](https://pensieve.doctorew.com/auth/login). |
+| Terminal | Run `pensieve connect https://pensieve.doctorew.com` and finish browser approval. [CLI](src/team-cli.ts#L35). |
+| Local Pensieve MCP agent | Ask the agent to call `connect_pensieve`, open its returned link, then retry. [Tool](src/team-service.ts#L52). |
+| ChatGPT, Claude, Cursor or another remote MCP host | Add `https://pensieve.doctorew.com/mcp` through the host's connector settings and authorize. [Connection guide](https://pensieve.doctorew.com/connect). |
+
+Account creation and identity verification finish in the browser. There is no
+password-based signup tool inside the terminal or chat; new users can create an
+account first, then connect their agent. Each host needs its own authorized connection;
+desktop controls and availability vary. [Web identity routes](src/identity-routes.ts#L31),
+[entry points and limitations](docs/ONBOARDING.md#where-account-creation-and-sign-in-happen).
+
 Browser sign-in alone does not prove an agent can access a pool. Finish onboarding by
 listing pools and recalling a known memory from the intended pool. The guide includes
 recovery for old credentials, expired connections, missing membership and indexing delays.
